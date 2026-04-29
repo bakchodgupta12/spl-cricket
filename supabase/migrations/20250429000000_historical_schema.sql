@@ -126,8 +126,7 @@ CREATE TABLE batting_records (
   fours           integer NOT NULL DEFAULT 0,
   sixes           integer NOT NULL DEFAULT 0,
   dismissal_text  text,                       -- raw dismissal string from scorecard
-  not_out         boolean NOT NULL DEFAULT false,
-  hand            text                        -- e.g. 'RHB' | 'LHB' | null; free text from parser
+  not_out         boolean NOT NULL DEFAULT false
 );
 
 CREATE INDEX batting_records_player_id_idx  ON batting_records (player_id);
