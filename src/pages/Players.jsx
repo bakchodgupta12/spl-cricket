@@ -317,8 +317,7 @@ export default function Players() {
                     background: i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)',
                     borderBottom: '1px solid var(--color-border)',
                   }}
-                  className="hover:brightness-110 transition-all cursor-pointer"
-                  onClick={() => window.location.href = `/players/${row.id}`}
+                  className="hover:brightness-110 transition-all"
                 >
                   <td
                     style={{
@@ -353,7 +352,6 @@ export default function Players() {
                               to={`/players/${row.id}`}
                               style={{ color: 'var(--color-heading)' }}
                               className="hover:underline"
-                              onClick={e => e.stopPropagation()}
                             >
                               {val}
                             </Link>
