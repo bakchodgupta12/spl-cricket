@@ -279,7 +279,7 @@ export default function Players() {
   // Attach display values and sort helper values
   const rowsWithDisplay = useMemo(() => allRows.map(r => ({
     ...r,
-    seasons_display: r.season_nums.map(n => `S${n}`).join(', '),
+    seasons_display: r.season_nums.join(', '),
     season_count: r.season_nums.length,
     teams_display: r.team_names.join(', '),
     avg_display: fmtNum(r.avg_num),
