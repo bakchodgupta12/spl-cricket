@@ -95,6 +95,12 @@ export default function Landing() {
 
         {/* Branding */}
         <div className="flex flex-col items-center gap-3">
+          <img
+            src="/spl-logo.svg"
+            alt="Superball Premier League"
+            style={{ height: '100px', width: 'auto' }}
+            className="mb-1"
+          />
           <div className="flex items-center gap-3">
             <span className="text-4xl select-none">🏏</span>
             <h1
