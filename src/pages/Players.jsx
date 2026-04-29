@@ -173,7 +173,7 @@ function computeStats(players, squads, batting, bowling, fielding, seasonNumById
 // ─── column definitions ───────────────────────────────────────────────────────
 
 const COLS = [
-  { key: 'name',             label: 'Player',   sortKey: 'name',            title: 'Player name', sticky: true },
+  { key: 'name',             label: 'Player',   sortKey: 'name',            title: 'Player name', sticky: true, stickyLeft: 44 },
   { key: 'seasons_display',  label: 'Seasons',  sortKey: 'season_count',    title: 'Seasons played' },
   { key: 'teams_display',    label: 'Teams',    sortKey: 'teams_display',   title: 'Teams played for' },
   { key: 'matches',          label: 'M',        sortKey: 'matches',         title: 'Matches played' },
@@ -444,6 +444,19 @@ export default function Players() {
             <thead>
               <tr style={{ background: 'var(--color-surface)', borderBottom: '2px solid var(--color-border)' }}
                   className="sticky top-0 z-10">
+                <th
+                  style={{
+                    color: 'var(--color-text)',
+                    background: 'var(--color-surface)',
+                    borderRight: '1px solid var(--color-border)',
+                    borderBottom: '2px solid var(--color-border)',
+                    position: 'sticky', left: 0, zIndex: 20,
+                    width: '44px', minWidth: '44px',
+                  }}
+                  className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap"
+                >
+                  #
+                </th>
                 {COLS.map((col, i) => {
                   const active = sortKey === col.sortKey
                   return (
@@ -456,7 +469,7 @@ export default function Players() {
                         background: 'var(--color-surface)',
                         borderRight: '1px solid var(--color-border)',
                         borderBottom: '2px solid var(--color-border)',
-                        ...(col.sticky ? { position: 'sticky', left: 0, zIndex: 20 } : {}),
+                        ...(col.sticky ? { position: 'sticky', left: col.stickyLeft ?? 0, zIndex: 20 } : {}),
                       }}
                       className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap hover:opacity-80"
                     >
@@ -481,6 +494,18 @@ export default function Players() {
                   className="hover:brightness-110 transition-all cursor-pointer"
                   onClick={() => window.location.href = `/players/${row.id}`}
                 >
+                  <td
+                    style={{
+                      color: 'var(--color-text)',
+                      background: i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)',
+                      borderRight: '1px solid var(--color-border)',
+                      position: 'sticky', left: 0,
+                      width: '44px', minWidth: '44px',
+                    }}
+                    className="px-3 py-2 whitespace-nowrap text-right"
+                  >
+                    {i + 1}
+                  </td>
                   {COLS.map(col => {
                     const isName = col.key === 'name'
                     const val = row[col.key] ?? row[col.sortKey]
@@ -493,7 +518,7 @@ export default function Players() {
                             ? (i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)')
                             : undefined,
                           borderRight: '1px solid var(--color-border)',
-                          ...(col.sticky ? { position: 'sticky', left: 0 } : {}),
+                          ...(col.sticky ? { position: 'sticky', left: col.stickyLeft ?? 0 } : {}),
                         }}
                         className={`px-3 py-2 whitespace-nowrap ${isName ? 'font-medium' : ''}`}
                       >
