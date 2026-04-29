@@ -349,13 +349,6 @@ export default function Players() {
         style={{ borderBottom: '1px solid var(--color-border)' }}
         className="px-4 sm:px-6 py-5"
       >
-        <Link
-          to="/"
-          style={{ color: 'var(--color-accent)' }}
-          className="text-sm mb-2 inline-block hover:opacity-80"
-        >
-          ← SPL Hub
-        </Link>
         <h1
           style={{ color: 'var(--color-heading)' }}
           className="text-2xl font-bold tracking-tight"
