@@ -8,13 +8,14 @@ function StatCard({ label, value, loading }) {
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
+        minHeight: '130px',
       }}
-      className="rounded-xl px-6 py-5 flex flex-col items-center gap-1 min-w-0"
+      className="rounded-xl px-5 py-6 flex flex-col items-center justify-center gap-2 flex-1"
     >
       {loading ? (
         <div
           style={{ background: 'var(--color-border)' }}
-          className="h-10 w-24 rounded animate-pulse mb-1"
+          className="h-10 w-20 rounded animate-pulse"
         />
       ) : (
         <span
@@ -26,7 +27,7 @@ function StatCard({ label, value, loading }) {
       )}
       <span
         style={{ color: 'var(--color-text)' }}
-        className="text-sm font-medium uppercase tracking-widest mt-1"
+        className="text-xs font-semibold uppercase tracking-widest whitespace-nowrap"
       >
         {label}
       </span>
@@ -78,12 +79,13 @@ export default function Landing() {
     fetchStats()
   }, [])
 
+  // Seasons first, then Matches, Players, Runs, Wickets
   const statCards = [
-    { label: 'Matches', value: stats?.matches?.toLocaleString() },
-    { label: 'Runs scored', value: stats?.runs?.toLocaleString() },
-    { label: 'Wickets', value: stats?.wickets?.toLocaleString() },
-    { label: 'Players', value: stats?.players?.toLocaleString() },
-    { label: 'Seasons', value: stats?.seasons?.toLocaleString() },
+    { label: 'Seasons',  value: stats?.seasons?.toLocaleString() },
+    { label: 'Matches',  value: stats?.matches?.toLocaleString() },
+    { label: 'Players',  value: stats?.players?.toLocaleString() },
+    { label: 'Runs',     value: stats?.runs?.toLocaleString() },
+    { label: 'Wickets',  value: stats?.wickets?.toLocaleString() },
   ]
 
   return (
@@ -93,16 +95,14 @@ export default function Landing() {
     >
       <div className="w-full max-w-3xl flex flex-col items-center gap-10 text-center">
 
-        {/* Branding */}
+        {/* Branding — logo inline with wordmark */}
         <div className="flex flex-col items-center gap-3">
-          <img
-            src="/spl-logo.svg"
-            alt="Superball Premier League"
-            style={{ height: '100px', width: 'auto' }}
-            className="mb-1"
-          />
-          <div className="flex items-center gap-3">
-            <span className="text-4xl select-none">🏏</span>
+          <div className="flex items-center gap-5">
+            <img
+              src="/spl-logo.svg"
+              alt="Superball Premier League"
+              style={{ height: '150px', width: 'auto' }}
+            />
             <h1
               style={{ color: 'var(--color-heading)' }}
               className="text-5xl sm:text-6xl font-bold tracking-tight leading-none"
@@ -125,34 +125,21 @@ export default function Landing() {
             Could not load stats: {error}
           </p>
         ) : (
-          <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="w-full flex gap-3">
             {statCards.map(({ label, value }) => (
               <StatCard key={label} label={label} value={value} loading={loading} />
             ))}
           </div>
         )}
 
-        {/* CTAs */}
-        <div className="flex flex-wrap gap-4 justify-center">
+        {/* CTA */}
+        <div className="flex justify-center">
           <Link
             to="/players"
-            style={{
-              background: 'var(--color-accent)',
-              color: '#fff',
-            }}
-            className="px-7 py-3 rounded-lg font-semibold text-base hover:opacity-90 transition-opacity"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+            className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-90 transition-opacity"
           >
             Browse Players
-          </Link>
-          <Link
-            to="/seasons"
-            style={{
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-heading)',
-            }}
-            className="px-7 py-3 rounded-lg font-semibold text-base hover:opacity-80 transition-opacity"
-          >
-            View Seasons
           </Link>
         </div>
 
