@@ -308,8 +308,8 @@ export default function Players() {
     const col = COLS.find(c => c.sortKey === sortKey)
     if (!col) return filtered
     return [...filtered].sort((a, b) => {
-      const av = a[sortKey] ?? a[col.key]
-      const bv = b[sortKey] ?? b[col.key]
+      const av = a[sortKey]
+      const bv = b[sortKey]
       if (av == null && bv == null) return 0
       if (av == null) return 1
       if (bv == null) return -1
@@ -446,7 +446,7 @@ export default function Players() {
                     position: 'sticky', left: 0, zIndex: 20,
                     width: '44px', minWidth: '44px',
                   }}
-                  className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap"
+                  className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap"
                 >
                   #
                 </th>
@@ -492,10 +492,10 @@ export default function Players() {
                       color: 'var(--color-text)',
                       background: i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)',
                       borderRight: '1px solid var(--color-border)',
-                      position: 'sticky', left: 0,
+                      position: 'sticky', left: 0, zIndex: 1,
                       width: '44px', minWidth: '44px',
                     }}
-                    className="px-3 py-2 whitespace-nowrap text-right"
+                    className="px-3 py-2 whitespace-nowrap text-center"
                   >
                     {i + 1}
                   </td>
@@ -511,7 +511,7 @@ export default function Players() {
                             ? (i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)')
                             : undefined,
                           borderRight: '1px solid var(--color-border)',
-                          ...(col.sticky ? { position: 'sticky', left: col.stickyLeft ?? 0 } : {}),
+                          ...(col.sticky ? { position: 'sticky', left: col.stickyLeft ?? 0, zIndex: 1 } : {}),
                         }}
                         className={`px-3 py-2 whitespace-nowrap ${isName ? 'font-medium' : ''}`}
                       >
