@@ -347,7 +347,7 @@ export default function Players() {
       {/* Page header */}
       <div
         style={{ borderBottom: '1px solid var(--color-border)' }}
-        className="px-4 sm:px-6 py-5"
+        className="px-4 sm:px-6 py-5 flex items-center justify-between gap-4"
       >
         <h1
           style={{ color: 'var(--color-heading)' }}
@@ -355,6 +355,18 @@ export default function Players() {
         >
           Players
         </h1>
+        <input
+          type="search"
+          placeholder="Search player…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-heading)',
+          }}
+          className="w-48 sm:w-64 px-3 py-2 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
+        />
       </div>
 
       {/* Filters */}
@@ -362,20 +374,6 @@ export default function Players() {
         style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
         className="px-4 sm:px-6 py-4 flex flex-col gap-3"
       >
-        {/* Search */}
-        <input
-          type="search"
-          placeholder="Search player…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            background: 'var(--color-bg)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-heading)',
-          }}
-          className="w-full sm:w-72 px-3 py-2 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
-        />
-
         {/* Season pills */}
         <div className="flex flex-wrap gap-2 items-center">
           <span style={{ color: 'var(--color-text)' }} className="text-xs uppercase tracking-wider mr-1">Season</span>
@@ -420,11 +418,6 @@ export default function Players() {
           </div>
         )}
 
-        {!loading && (
-          <p style={{ color: 'var(--color-text)' }} className="text-xs">
-            {sorted.length} of {allRows.length} players
-          </p>
-        )}
       </div>
 
       {/* Table */}

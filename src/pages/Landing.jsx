@@ -95,21 +95,19 @@ export default function Landing() {
     >
       <div className="w-full max-w-3xl flex flex-col items-center gap-10 text-center">
 
-        {/* Branding — logo inline with wordmark */}
+        {/* Branding — logo above wordmark */}
         <div className="flex flex-col items-center gap-3">
-          <div className="flex items-center gap-5">
-            <img
-              src="/spl-logo.svg"
-              alt="Superball Premier League"
-              style={{ height: '150px', width: 'auto' }}
-            />
-            <h1
-              style={{ color: 'var(--color-heading)' }}
-              className="text-5xl sm:text-6xl font-bold tracking-tight leading-none"
-            >
-              SPL Hub
-            </h1>
-          </div>
+          <img
+            src="/spl-logo.svg"
+            alt="Superball Premier League"
+            style={{ height: '180px', width: 'auto' }}
+          />
+          <h1
+            style={{ color: 'var(--color-heading)' }}
+            className="text-5xl sm:text-6xl font-bold tracking-tight leading-none"
+          >
+            🏏 SPL Hub
+          </h1>
           <p
             style={{ color: 'var(--color-text)' }}
             className="text-lg sm:text-xl max-w-md"
