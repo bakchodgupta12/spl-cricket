@@ -108,7 +108,7 @@ export default function Landing() {
             style={{ color: 'var(--color-text)' }}
             className="text-lg sm:text-xl max-w-md"
           >
-            Five seasons of Bangkok Premier League cricket — every run, wicket,
+            Five seasons of Superball Premier League cricket — every run, wicket,
             and catch, in one place.
           </p>
         </div>
