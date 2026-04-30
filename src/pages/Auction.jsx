@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { toPng } from 'html-to-image'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -549,6 +550,229 @@ function SetupTab() {
   )
 }
 
+// ─── CategoriesTab ────────────────────────────────────────────────────────────
+
+// Hardcoded palette — CSS variables are not reliable inside html-to-image canvas
+const BG       = '#0f1117'
+const SURFACE  = '#1a1d27'
+const BORDER   = '#2a2d3a'
+const MUTED    = '#6b7280'
+const HEADING  = '#f3f4f6'
+
+const CAT_PALETTE = {
+  A: { bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.35)',  text: '#93c5fd',  label: '#bfdbfe' },
+  B: { bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.35)',  text: '#6ee7b7',  label: '#a7f3d0' },
+  C: { bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.35)',  text: '#fcd34d',  label: '#fde68a' },
+  D: { bg: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.35)',  text: '#c4b5fd',  label: '#ddd6fe' },
+}
+
+function CategoryColumn({ category, players, captainMap }) {
+  const pal = CAT_PALETTE[category]
+  return (
+    <div style={{
+      background: pal.bg,
+      border: `1px solid ${pal.border}`,
+      borderRadius: 10,
+      overflow: 'hidden',
+      flex: 1,
+      minWidth: 0,
+    }}>
+      {/* column header */}
+      <div style={{
+        borderBottom: `1px solid ${pal.border}`,
+        padding: '10px 14px',
+        textAlign: 'center',
+      }}>
+        <span style={{ color: pal.label, fontWeight: 700, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Category {category}
+        </span>
+      </div>
+
+      {/* player list */}
+      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {players.length === 0 ? (
+          <p style={{ color: MUTED, fontSize: 12, fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
+            No players assigned
+          </p>
+        ) : players.map((p, i) => {
+          const teamName = captainMap.get(p.id)
+          return (
+            <div key={p.id}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: MUTED, fontSize: 11, minWidth: 18, textAlign: 'right', flexShrink: 0 }}>
+                  {i + 1}.
+                </span>
+                <span style={{ color: HEADING, fontSize: 13 }}>{p.name}</span>
+                {teamName && <span style={{ fontSize: 13, lineHeight: 1 }}>👑</span>}
+              </div>
+              {teamName && (
+                <div style={{ color: pal.text, fontSize: 11, marginLeft: 24 }}>
+                  {teamName}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function CategoriesTab() {
+  const captureRef = useRef(null)
+  const [s6Players, setS6Players] = useState([])
+  const [s6Teams, setS6Teams] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [pRes, tRes] = await Promise.all([
+          supabase.from('s6_players').select('*').order('name'),
+          supabase.from('s6_teams').select('*').order('name'),
+        ])
+        if (pRes.error) throw pRes.error
+        if (tRes.error) throw tRes.error
+        setS6Players(pRes.data)
+        setS6Teams(tRes.data)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const captainMap = useMemo(() => {
+    const m = new Map()
+    for (const t of s6Teams) if (t.captain_s6_player_id) m.set(t.captain_s6_player_id, t.name)
+    return m
+  }, [s6Teams])
+
+  const byCategory = useMemo(() => {
+    const m = { A: [], B: [], C: [], D: [] }
+    for (const p of s6Players) if (p.category in m) m[p.category].push(p)
+    return m
+  }, [s6Players])
+
+  const budgetDisplay = useMemo(() => {
+    const budgets = s6Teams.map(t => t.budget_total).filter(Boolean)
+    if (!budgets.length) return 'TBD'
+    if (budgets.every(b => b === budgets[0])) return budgets[0].toLocaleString()
+    return `${Math.min(...budgets).toLocaleString()}–${Math.max(...budgets).toLocaleString()}`
+  }, [s6Teams])
+
+  async function handleExport() {
+    if (!captureRef.current || exporting) return
+    setExporting(true)
+    try {
+      const dataUrl = await toPng(captureRef.current, {
+        pixelRatio: 2,
+        backgroundColor: BG,
+        skipFonts: false,
+      })
+      const a = document.createElement('a')
+      a.download = 'spl-s6-players.png'
+      a.href = dataUrl
+      a.click()
+    } catch (err) {
+      console.error('export failed', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <span style={{ color: 'var(--color-text)' }} className="text-sm animate-pulse">Loading…</span>
+    </div>
+  )
+  if (error) return <p style={{ color: '#f87171' }} className="text-sm">{error}</p>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* Export button — outside capture area */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          style={{
+            background: exporting ? 'var(--color-surface)' : 'var(--color-accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            padding: '8px 18px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: exporting ? 'default' : 'pointer',
+            opacity: exporting ? 0.6 : 1,
+          }}
+        >
+          {exporting ? 'Exporting…' : '↓ Export PNG'}
+        </button>
+      </div>
+
+      {/* Capture area */}
+      <div
+        ref={captureRef}
+        style={{
+          background: BG,
+          borderRadius: 12,
+          border: `1px solid ${BORDER}`,
+          padding: 28,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20,
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <img
+            src="/spl-logo.svg"
+            alt="SPL"
+            style={{ height: 72, width: 'auto', flexShrink: 0 }}
+          />
+          <div>
+            <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
+              Superball Premier League — Season 6 Players List
+            </h1>
+            <p style={{ color: MUTED, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
+              Auction date: TBD
+            </p>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: BORDER }} />
+
+        {/* Four columns */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          {CATEGORIES.map(cat => (
+            <CategoryColumn
+              key={cat}
+              category={cat}
+              players={byCategory[cat]}
+              captainMap={captainMap}
+            />
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: BORDER }} />
+
+        {/* Footer */}
+        <p style={{ color: MUTED, fontSize: 11, textAlign: 'center', margin: 0 }}>
+          {s6Players.length} player{s6Players.length !== 1 ? 's' : ''} across {s6Teams.length} team{s6Teams.length !== 1 ? 's' : ''} · Auction budget: {budgetDisplay} per team
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ─── AuctionApp ───────────────────────────────────────────────────────────────
 
 function AuctionApp() {
@@ -581,16 +805,15 @@ function AuctionApp() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {activeTab === 'Setup'
-          ? <SetupTab />
-          : (
-            <div className="flex items-center justify-center py-20">
-              <p style={{ color: 'var(--color-text)' }} className="text-sm italic">
-                {activeTab} — coming soon
-              </p>
-            </div>
-          )
-        }
+        {activeTab === 'Setup'      && <SetupTab />}
+        {activeTab === 'Categories' && <CategoriesTab />}
+        {!['Setup', 'Categories'].includes(activeTab) && (
+          <div className="flex items-center justify-center py-20">
+            <p style={{ color: 'var(--color-text)' }} className="text-sm italic">
+              {activeTab} — coming soon
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
