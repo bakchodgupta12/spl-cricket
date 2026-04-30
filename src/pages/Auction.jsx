@@ -864,7 +864,25 @@ function LiveStatBlock({ title, rows, emptyMsg }) {
   )
 }
 
-function PlayerStatCard({ player, stats, statsLoading }) {
+const TAG_PALETTE = {
+  run:    { bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa', border: 'rgba(59,130,246,0.4)'  },
+  wicket: { bg: 'rgba(239,68,68,0.15)',   color: '#f87171', border: 'rgba(239,68,68,0.4)'   },
+  hs:     { bg: 'rgba(245,158,11,0.15)',  color: '#fbbf24', border: 'rgba(245,158,11,0.4)'  },
+  bb:     { bg: 'rgba(251,146,60,0.15)',  color: '#fb923c', border: 'rgba(251,146,60,0.4)'  },
+  final:  { bg: 'rgba(192,132,252,0.15)', color: '#c084fc', border: 'rgba(192,132,252,0.4)' },
+  catch:  { bg: 'rgba(52,211,153,0.15)',  color: '#34d399', border: 'rgba(52,211,153,0.4)'  },
+}
+function tagPalette(label) {
+  if (/run|scorer/i.test(label))   return TAG_PALETTE.run
+  if (/wicket/i.test(label))       return TAG_PALETTE.wicket
+  if (/score|Highest/i.test(label)) return TAG_PALETTE.hs
+  if (/bowling/i.test(label))      return TAG_PALETTE.bb
+  if (/final/i.test(label))        return TAG_PALETTE.final
+  if (/catch/i.test(label))        return TAG_PALETTE.catch
+  return TAG_PALETTE.run
+}
+
+function PlayerStatCard({ player, stats, statsLoading, tags }) {
   const pal = CAT_PALETTE[player.category]
 
   const battingRows = stats && [
@@ -909,6 +927,14 @@ function PlayerStatCard({ player, stats, statsLoading }) {
               Debut
             </span>
           )}
+          {(tags || []).map(tag => {
+            const tp = tagPalette(tag)
+            return (
+              <span key={tag} style={{ background: tp.bg, color: tp.color, border: `1px solid ${tp.border}`, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
+                {tag}
+              </span>
+            )
+          })}
         </div>
       </div>
 
@@ -1000,6 +1026,7 @@ function LiveAuctionTab() {
   const [selected,     setSelected]     = useState(null)
   const [stats,        setStats]        = useState(null)
   const [statsLoading, setStatsLoading] = useState(false)
+  const [statTags,     setStatTags]     = useState(null) // { [mapped_player_id]: string[] }
 
   // ── search ────────────────────────────────────────────────────────────────
   const [searchQuery,       setSearchQuery]       = useState('')
@@ -1060,6 +1087,68 @@ function LiveAuctionTab() {
     }
     load()
   }, [])
+
+  // ── compute stat-ranking tags once after s6Players loads ────────────────────
+
+  useEffect(() => {
+    if (!s6Players.length || statTags !== null) return
+    const mappedIds = s6Players.map(p => p.mapped_player_id).filter(Boolean)
+    if (!mappedIds.length) { setStatTags({}); return }
+
+    async function computeStatTags() {
+      const [batRes, bowlRes, fieldRes, squadRes] = await Promise.all([
+        supabase.from('batting_records').select('player_id, runs').in('player_id', mappedIds),
+        supabase.from('bowling_records').select('player_id, wickets, runs_conceded').in('player_id', mappedIds),
+        supabase.from('fielding_credits').select('player_id, kind').in('player_id', mappedIds),
+        supabase.from('match_squads').select('player_id, matches!inner(match_type, abandoned)').in('player_id', mappedIds),
+      ])
+      const totRuns = {}, hs = {}, totWick = {}, bestBowl = {}, finCt = {}, catchCt = {}
+
+      for (const r of batRes.data || []) {
+        totRuns[r.player_id] = (totRuns[r.player_id] || 0) + r.runs
+        hs[r.player_id] = Math.max(hs[r.player_id] || 0, r.runs)
+      }
+      for (const r of bowlRes.data || []) {
+        totWick[r.player_id] = (totWick[r.player_id] || 0) + r.wickets
+        const p = bestBowl[r.player_id]
+        if (!p || r.wickets > p.w || (r.wickets === p.w && r.runs_conceded < p.r))
+          bestBowl[r.player_id] = { w: r.wickets, r: r.runs_conceded }
+      }
+      for (const r of fieldRes.data || []) {
+        if (r.kind === 'catch' || r.kind === 'wk_catch')
+          catchCt[r.player_id] = (catchCt[r.player_id] || 0) + 1
+      }
+      for (const r of squadRes.data || []) {
+        const m = r.matches
+        if (m && !m.abandoned && m.match_type?.toLowerCase() === 'final')
+          finCt[r.player_id] = (finCt[r.player_id] || 0) + 1
+      }
+
+      const tags = {}
+      function top3(scoreMap, labels) {
+        Object.entries(scoreMap)
+          .filter(([, v]) => v > 0)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .forEach(([pid], i) => { tags[pid] = [...(tags[pid] || []), labels[i]] })
+      }
+      top3(totRuns, ['Top run scorer', '2nd in runs', '3rd in runs'])
+      top3(totWick, ['Top wicket-taker', '2nd in wickets', '3rd in wickets'])
+      top3(hs,      ['Highest score', '2nd highest score', '3rd highest score'])
+      top3(finCt,   ['Most finals', '2nd most finals', '3rd most finals'])
+      top3(catchCt, ['Most catches', '2nd most catches', '3rd most catches'])
+      // Best bowling: sort wickets desc, runs asc
+      Object.entries(bestBowl)
+        .filter(([, v]) => v.w > 0)
+        .sort((a, b) => b[1].w !== a[1].w ? b[1].w - a[1].w : a[1].r - b[1].r)
+        .slice(0, 3)
+        .forEach(([pid], i) => {
+          tags[pid] = [...(tags[pid] || []), ['Best bowling', '2nd best bowling', '3rd best bowling'][i]]
+        })
+      setStatTags(tags)
+    }
+    computeStatTags()
+  }, [s6Players, statTags])
 
   // ── fetch historical stats when player selected ──────────────────────────────
 
@@ -1460,7 +1549,7 @@ function LiveAuctionTab() {
           {/* Stat card + category roster */}
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             <div style={{ flex: '0 0 60%', minWidth: 0, animation: 'slideUp 0.2s ease both' }}>
-              <PlayerStatCard player={selected} stats={stats} statsLoading={statsLoading} />
+              <PlayerStatCard player={selected} stats={stats} statsLoading={statsLoading} tags={selected.mapped_player_id && statTags ? (statTags[selected.mapped_player_id] ?? []) : []} />
             </div>
             <div style={{ flex: '0 0 40%', minWidth: 0, animation: 'slideUp 0.2s ease 0.06s both' }}>
               <CategoryRosterPanel category={selected.category} players={categoryRoster} activeId={selected.id} soldIds={soldIds} salesMap={salesBySixPlayer} teamInfo={teamInfo} />
