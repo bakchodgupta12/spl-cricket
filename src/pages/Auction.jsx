@@ -896,7 +896,7 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
         </span>
         <span style={{ color: pal.text, fontSize: 12 }}>({left} / {players.length} left)</span>
       </div>
-      <div style={{ padding: '6px 0', maxHeight: 340, overflowY: 'auto' }}>
+      <div style={{ padding: '4px 0', overflowY: 'auto', maxHeight: 400 }}>
         {players.map(p => {
           const isSold = soldIds.has(p.id)
           const isActive = p.id === activeId
@@ -904,14 +904,14 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
           const saleTeam = sale ? teamById[sale.s6_team_id] : null
           return (
             <div key={p.id} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '6px 14px',
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '3px 12px',
               background: isActive ? pal.bg : 'transparent',
               borderLeft: isActive ? `3px solid ${pal.border.replace('0.35','0.8')}` : '3px solid transparent',
             }}>
               <span style={{
                 color: isSold ? 'var(--color-border)' : isActive ? pal.label : 'var(--color-heading)',
-                fontSize: 13, textDecoration: isSold ? 'line-through' : 'none',
+                fontSize: 12, textDecoration: isSold ? 'line-through' : 'none',
                 opacity: isSold ? 0.55 : 1, flex: 1, minWidth: 0,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
@@ -944,8 +944,9 @@ function LiveAuctionTab() {
   const [statsLoading, setStatsLoading] = useState(false)
 
   // ── search ────────────────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchOpen,  setSearchOpen]  = useState(false)
+  const [searchQuery,       setSearchQuery]       = useState('')
+  const [searchOpen,        setSearchOpen]        = useState(false)
+  const [showBiddingSearch, setShowBiddingSearch] = useState(false)
   const selecting = useRef(false)
 
   // ── bidding ───────────────────────────────────────────────────────────────
@@ -1037,8 +1038,12 @@ function LiveAuctionTab() {
         if (inInput) return
         e.preventDefault()
         if (soldOverlay) { abortOverlay(); return }
-        if (selected) clearPlayer()
-        searchRef.current?.focus()
+        if (selected) {
+          setShowBiddingSearch(true)
+          setTimeout(() => searchRef.current?.focus(), 50)
+        } else {
+          searchRef.current?.focus()
+        }
       }
       if (e.key === 'Escape') {
         if (soldOverlay) { abortOverlay(); return }
@@ -1080,7 +1085,7 @@ function LiveAuctionTab() {
 
   function clearPlayer() {
     setSelected(null); setStats(null)
-    setSearchQuery(''); setSearchOpen(false)
+    setSearchQuery(''); setSearchOpen(false); setShowBiddingSearch(false)
     setCurrentBid(0); setDisplayBid(0); setHighBidder(null)
     setShowManualBid(false); setManualBidInput(''); setManualBidTeamId('')
     if (bidAnimRef.current) cancelAnimationFrame(bidAnimRef.current)
@@ -1088,7 +1093,7 @@ function LiveAuctionTab() {
 
   function selectPlayer(p) {
     setSelected(p)
-    setSearchQuery(''); setSearchOpen(false)
+    setSearchQuery(''); setSearchOpen(false); setShowBiddingSearch(false)
     setCurrentBid(p.base_price); setDisplayBid(p.base_price)
     setHighBidder(null); setShowManualBid(false)
   }
@@ -1268,14 +1273,7 @@ function LiveAuctionTab() {
         </div>
       )}
 
-      {/* Undo last sale — top right */}
-      {lastSale && !soldOverlay && (
-        <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 10 }}>
-          <button onClick={() => setUndoConfirm(true)} style={{ color: 'var(--color-text)', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}>
-            ↩ Undo last sale
-          </button>
-        </div>
-      )}
+      {/* (undo now lives above the paddle row) */}
 
       {/* ── IDLE STATE ────────────────────────────────────────────────────── */}
       {!selected && (
@@ -1335,32 +1333,45 @@ function LiveAuctionTab() {
       {selected && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
 
-          {/* Compact search at top */}
-          <div style={{ position: 'relative', maxWidth: 380 }}>
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder="Search player…"
-              value={searchQuery}
-              onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
-              onFocus={() => setSearchOpen(true)}
-              onBlur={() => { if (!selecting.current) setSearchOpen(false) }}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && searchResults.length > 0) selectPlayer(searchResults[0])
-                if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
-              }}
-              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '9px 14px', fontSize: 14, outline: 'none' }}
-            />
-            {searchOpen && searchResults.length > 0 && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, marginTop: 4, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-                {searchResults.map(p => (
-                  <div key={p.id} onMouseDown={() => { selecting.current = true }} onClick={() => { selecting.current = false; selectPlayer(p) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }} className="hover:bg-blue-500/10">
-                    <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{p.category}</span>
-                    <span style={{ color: 'var(--color-heading)', fontSize: 13 }}>{p.name}</span>
-                    <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>${p.base_price}</span>
+          {/* Change-player escape hatch */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            {showBiddingSearch ? (
+              <div style={{ position: 'relative', width: 300 }}>
+                <input
+                  ref={searchRef}
+                  autoFocus
+                  type="search"
+                  placeholder="Change player…"
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
+                  onFocus={() => setSearchOpen(true)}
+                  onBlur={() => { if (!selecting.current) { setSearchOpen(false); setShowBiddingSearch(false) } }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && searchResults.length > 0) selectPlayer(searchResults[0])
+                    if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false); setShowBiddingSearch(false) }
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '7px 12px', fontSize: 13, outline: 'none' }}
+                />
+                {searchOpen && searchResults.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, marginTop: 4, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                    {searchResults.map(p => (
+                      <div key={p.id} onMouseDown={() => { selecting.current = true }} onClick={() => { selecting.current = false; selectPlayer(p) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }} className="hover:bg-blue-500/10">
+                        <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{p.category}</span>
+                        <span style={{ color: 'var(--color-heading)', fontSize: 13 }}>{p.name}</span>
+                        <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>${p.base_price}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
+            ) : (
+              <button
+                onClick={() => setShowBiddingSearch(true)}
+                style={{ color: '#6b7280', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                title="Change player (or press /)"
+              >
+                🔍 Change player
+              </button>
             )}
           </div>
 
@@ -1431,7 +1442,21 @@ function LiveAuctionTab() {
       )}
 
       {/* ── PADDLES + SOLD ROW (always rendered) ────────────────────────── */}
-      <div style={{ marginTop: selected ? 14 : 28, display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+      <div style={{ marginTop: selected ? 14 : 28 }}>
+
+        {/* Undo strip — above paddles, right-aligned */}
+        {lastSale && !soldOverlay && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button
+              onClick={() => setUndoConfirm(true)}
+              style={{ color: 'var(--color-text)', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}
+            >
+              ↶ Undo last sale
+            </button>
+          </div>
+        )}
+
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 10 }}>
         {/* Team paddles */}
         {teamInfo.map(team => {
           const isHighBidder = team.id === highBidder
@@ -1449,7 +1474,7 @@ function LiveAuctionTab() {
                 disabled={disabled && !isHighBidder}
                 title={!hasSlots ? 'No slots left' : !canAffordNext && selected ? 'Out of budget' : undefined}
                 style={{
-                  width: '100%',
+                  width: '100%', flex: 1,
                   background: !selected ? 'var(--color-surface)' : isHighBidder ? team.color : disabled ? 'rgba(255,255,255,0.04)' : team.color,
                   color: !selected ? 'var(--color-border)' : (isHighBidder || !disabled) ? '#fff' : 'var(--color-text)',
                   border: isHighBidder
@@ -1469,7 +1494,7 @@ function LiveAuctionTab() {
           )
         })}
 
-        {/* SOLD button — visually distinct closer */}
+        {/* SOLD — same height as paddles, distinct colour */}
         {(() => {
           const soldActive = !!(selected && highBidder && !selling)
           return (
@@ -1479,12 +1504,12 @@ function LiveAuctionTab() {
                 onClick={handleSell}
                 disabled={!soldActive}
                 style={{
-                  width: '100%',
+                  width: '100%', flex: 1,
                   background: soldActive ? '#F2C033' : 'rgba(255,255,255,0.04)',
                   color: soldActive ? '#1a1200' : '#6b7280',
                   border: `2px solid ${soldActive ? '#F2C033' : 'rgba(255,255,255,0.08)'}`,
                   borderRadius: 30,
-                  padding: '18px 10px',
+                  padding: '13px 10px',
                   fontSize: 18, fontWeight: 900,
                   cursor: soldActive ? 'pointer' : 'default',
                   opacity: soldActive ? 1 : 0.35,
@@ -1498,6 +1523,7 @@ function LiveAuctionTab() {
             </div>
           )
         })()}
+      </div>
       </div>
     </div>
   )
