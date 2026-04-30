@@ -1014,7 +1014,7 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
   )
 }
 
-function LiveAuctionTab() {
+function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, highBidder, setHighBidder }) {
   // ── data ──────────────────────────────────────────────────────────────────
   const [s6Players, setS6Players] = useState([])
   const [s6Teams,   setS6Teams]   = useState([])
@@ -1023,7 +1023,7 @@ function LiveAuctionTab() {
   const [error,     setError]     = useState(null)
 
   // ── player selection + stats ───────────────────────────────────────────────
-  const [selected,     setSelected]     = useState(null)
+  // selected / currentBid / highBidder are lifted to AuctionApp (persist across tab switches)
   const [stats,        setStats]        = useState(null)
   const [statsLoading, setStatsLoading] = useState(false)
   const [statTags,     setStatTags]     = useState(null) // { [mapped_player_id]: string[] }
@@ -1035,9 +1035,7 @@ function LiveAuctionTab() {
   const selecting = useRef(false)
 
   // ── bidding ───────────────────────────────────────────────────────────────
-  const [currentBid,  setCurrentBid]  = useState(0)
-  const [displayBid,  setDisplayBid]  = useState(0)
-  const [highBidder,  setHighBidder]  = useState(null) // s6_team_id | null
+  const [displayBid,  setDisplayBid]  = useState(currentBid) // init from prop on mount
   const [pulsePaddle, setPulsePaddle] = useState(null)
   const bidAnimRef = useRef(null)
 
@@ -1950,7 +1948,11 @@ function LiveAuctionTab() {
 // ─── AuctionApp ───────────────────────────────────────────────────────────────
 
 function AuctionApp() {
-  const [activeTab, setActiveTab] = useState('Setup')
+  const [activeTab,   setActiveTab]   = useState('Setup')
+  // Lifted so Live Auction state survives tab switches
+  const [selected,    setSelected]    = useState(null)
+  const [currentBid,  setCurrentBid]  = useState(0)
+  const [highBidder,  setHighBidder]  = useState(null)
 
   return (
     <div style={{ background: 'var(--color-bg)', minHeight: '100dvh' }}>
@@ -1981,7 +1983,13 @@ function AuctionApp() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {activeTab === 'Setup'        && <SetupTab />}
         {activeTab === 'Categories'   && <CategoriesTab />}
-        {activeTab === 'Live Auction' && <LiveAuctionTab />}
+        {activeTab === 'Live Auction' && (
+          <LiveAuctionTab
+            selected={selected}       setSelected={setSelected}
+            currentBid={currentBid}   setCurrentBid={setCurrentBid}
+            highBidder={highBidder}   setHighBidder={setHighBidder}
+          />
+        )}
         {!['Setup', 'Categories', 'Live Auction'].includes(activeTab) && (
           <div className="flex items-center justify-center py-20">
             <p style={{ color: 'var(--color-text)' }} className="text-sm italic">
