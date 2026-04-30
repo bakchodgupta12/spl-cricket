@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toPng } from 'html-to-image'
+import { ballsToOvers, fmtNum, fmtHalf, computePlayerStats } from '../lib/cricketStats'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -589,7 +590,7 @@ function CategoryColumn({ category, players, captainMap }) {
       </div>
 
       {/* player list */}
-      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {players.length === 0 ? (
           <p style={{ color: MUTED, fontSize: 12, fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
             No players assigned
@@ -597,18 +598,16 @@ function CategoryColumn({ category, players, captainMap }) {
         ) : players.map((p, i) => {
           const teamName = captainMap.get(p.id)
           return (
-            <div key={p.id}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: MUTED, fontSize: 11, minWidth: 18, textAlign: 'right', flexShrink: 0 }}>
-                  {i + 1}.
-                </span>
-                <span style={{ color: HEADING, fontSize: 13 }}>{p.name}</span>
-                {teamName && <span style={{ fontSize: 13, lineHeight: 1 }}>👑</span>}
-              </div>
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, height: 26, overflow: 'hidden' }}>
+              <span style={{ color: MUTED, fontSize: 11, minWidth: 20, textAlign: 'right', flexShrink: 0 }}>
+                {i + 1}.
+              </span>
+              <span style={{ color: HEADING, fontSize: 13, whiteSpace: 'nowrap' }}>{p.name}</span>
+              {teamName && <span style={{ fontSize: 12, flexShrink: 0, lineHeight: 1 }}>👑</span>}
               {teamName && (
-                <div style={{ color: pal.text, fontSize: 11, marginLeft: 24 }}>
+                <span style={{ color: pal.text, fontSize: 10, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {teamName}
-                </div>
+                </span>
               )}
             </div>
           )
@@ -693,30 +692,9 @@ function CategoriesTab() {
   if (error) return <p style={{ color: '#f87171' }} className="text-sm">{error}</p>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* Export button — outside capture area */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          style={{
-            background: exporting ? 'var(--color-surface)' : 'var(--color-accent)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            padding: '8px 18px',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: exporting ? 'default' : 'pointer',
-            opacity: exporting ? 0.6 : 1,
-          }}
-        >
-          {exporting ? 'Exporting…' : '↓ Export PNG'}
-        </button>
-      </div>
-
-      {/* Capture area */}
+      {/* Capture area — button is intentionally outside */}
       <div
         ref={captureRef}
         style={{
@@ -741,7 +719,7 @@ function CategoriesTab() {
               Superball Premier League — Season 6 Players List
             </h1>
             <p style={{ color: MUTED, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
-              Auction date: TBD
+              Auction date: 2 May, 9 PM (Bangkok time)
             </p>
           </div>
         </div>
@@ -750,7 +728,7 @@ function CategoriesTab() {
         <div style={{ height: 1, background: BORDER }} />
 
         {/* Four columns */}
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
           {CATEGORIES.map(cat => (
             <CategoryColumn
               key={cat}
@@ -768,6 +746,537 @@ function CategoriesTab() {
         <p style={{ color: MUTED, fontSize: 11, textAlign: 'center', margin: 0 }}>
           {s6Players.length} player{s6Players.length !== 1 ? 's' : ''} across {s6Teams.length} team{s6Teams.length !== 1 ? 's' : ''} · Auction budget: {budgetDisplay} per team
         </p>
+      </div>
+
+      {/* Export button — below capture area, centred, not included in PNG */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          style={{
+            background: exporting ? 'var(--color-surface)' : 'var(--color-accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            padding: '10px 24px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: exporting ? 'default' : 'pointer',
+            opacity: exporting ? 0.6 : 1,
+          }}
+        >
+          {exporting ? 'Exporting…' : '↓ Export PNG'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── LiveAuctionTab ───────────────────────────────────────────────────────────
+
+const MAX_SLOTS = 8
+
+// Compact stat display for the player card
+function LiveStatRow({ label, value }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
+      <span style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </div>
+  )
+}
+
+function LiveStatBlock({ title, rows, emptyMsg }) {
+  return (
+    <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
+      <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{title}</p>
+      {emptyMsg
+        ? <p style={{ color: 'var(--color-text)', fontSize: 12, fontStyle: 'italic', margin: 0 }}>{emptyMsg}</p>
+        : rows.map(r => <LiveStatRow key={r.label} label={r.label} value={r.value} />)
+      }
+    </div>
+  )
+}
+
+function PlayerStatCard({ player, stats, statsLoading }) {
+  const pal = CAT_PALETTE[player.category]
+
+  const battingRows = stats && [
+    { label: 'Matches',     value: stats.matches },
+    { label: 'Innings',     value: stats.bat_innings },
+    { label: 'Runs',        value: stats.runs },
+    { label: 'Avg',         value: fmtNum(stats.avg_num) },
+    { label: 'SR',          value: fmtNum(stats.sr_num) },
+    { label: 'HS',          value: stats.hs_display },
+    { label: '4s',          value: stats.fours },
+    { label: '6s',          value: stats.sixes },
+    { label: '30+ / 50+',   value: `${stats.thirties} / ${stats.fifties}` },
+  ]
+
+  const bowlingRows = stats && [
+    { label: 'Innings',     value: stats.bowl_innings },
+    { label: 'Overs',       value: ballsToOvers(stats.balls_bowled) },
+    { label: 'Wickets',     value: stats.wickets },
+    { label: 'BB',          value: stats.bb_display },
+    { label: 'Avg',         value: fmtNum(stats.bowl_avg_num) },
+    { label: 'Eco',         value: fmtNum(stats.eco_num) },
+    { label: 'Dot%',        value: fmtNum(stats.dot_pct_num, 1) },
+  ]
+
+  const fieldingRows = stats && [
+    { label: 'Catches',     value: stats.catches },
+    { label: 'Stumpings',   value: stats.stumpings },
+    { label: 'Run Outs',    value: stats.run_outs },
+  ]
+
+  return (
+    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Name + pills */}
+      <div>
+        <h2 style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{player.name}</h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <span style={{ background: pal.bg, color: pal.label, border: `1px solid ${pal.border}`, borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
+            Cat {player.category}
+          </span>
+          <span style={{ background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 20, padding: '2px 10px', fontSize: 12 }}>
+            Base {player.base_price.toLocaleString()}
+          </span>
+          <span style={{
+            background: player.is_debut ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+            color: player.is_debut ? '#6ee7b7' : '#93c5fd',
+            border: `1px solid ${player.is_debut ? 'rgba(16,185,129,0.35)' : 'rgba(59,130,246,0.35)'}`,
+            borderRadius: 20, padding: '2px 10px', fontSize: 12,
+          }}>
+            {player.is_debut ? 'Debut' : 'Returning'}
+          </span>
+        </div>
+      </div>
+
+      {/* Stats body */}
+      {player.is_debut ? (
+        <p style={{ color: 'var(--color-text)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>
+          Debut player — no historical record
+        </p>
+      ) : statsLoading ? (
+        <p style={{ color: 'var(--color-text)', fontSize: 13, margin: 0 }} className="animate-pulse">Loading stats…</p>
+      ) : !stats ? (
+        <p style={{ color: 'var(--color-text)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No historical data found.</p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} />
+            <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} />
+            <LiveStatBlock title="Fielding" rows={fieldingRows} />
+          </div>
+
+          {stats.times_captained > 0 && (
+            <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#93c5fd', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <span>👑 Captained {stats.times_captained}</span>
+              <span>Win% {fmtNum(stats.capt_win_pct_num, 1)}</span>
+              <span>{stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function LiveAuctionTab() {
+  const [s6Players, setS6Players]   = useState([])
+  const [s6Teams,   setS6Teams]     = useState([])
+  const [sales,     setSales]       = useState([])
+  const [loading,   setLoading]     = useState(true)
+  const [error,     setError]       = useState(null)
+
+  const [selected,      setSelected]      = useState(null)
+  const [stats,         setStats]         = useState(null)
+  const [statsLoading,  setStatsLoading]  = useState(false)
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen,  setSearchOpen]  = useState(false)
+  const selecting = useRef(false)
+
+  const [salePrice,   setSalePrice]   = useState('')
+  const [buyerTeamId, setBuyerTeamId] = useState('')
+  const [selling,     setSelling]     = useState(false)
+  const [lastSale,    setLastSale]    = useState(null)   // { saleId, playerName, teamName, price }
+  const [toastMsg,    setToastMsg]    = useState('')
+
+  const searchRef  = useRef(null)
+  const priceRef   = useRef(null)
+
+  // ── initial load ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [pRes, tRes, sRes] = await Promise.all([
+          supabase.from('s6_players').select('*').order('name'),
+          supabase.from('s6_teams').select('*').order('name'),
+          supabase.from('auction_sales').select('*').eq('voided', false),
+        ])
+        if (pRes.error) throw pRes.error
+        if (tRes.error) throw tRes.error
+        if (sRes.error) throw sRes.error
+        setS6Players(pRes.data)
+        setS6Teams(tRes.data)
+        setSales(sRes.data)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  // ── fetch historical stats when player selected ──────────────────────────────
+
+  useEffect(() => {
+    if (!selected || selected.is_debut || !selected.mapped_player_id) {
+      setStats(null)
+      return
+    }
+    const pid = selected.mapped_player_id
+    setStatsLoading(true)
+    setStats(null)
+
+    Promise.all([
+      supabase.from('players').select('id, canonical_name').eq('id', pid).single(),
+      supabase.from('match_squads').select('match_id, team_id, is_captain, is_wk, teams!inner(name), matches!inner(id, date, match_type, file_name, season_id, winner_team_id, abandoned, team_a_id, team_b_id)').eq('player_id', pid),
+      supabase.from('batting_records').select('innings_id, runs, balls, fours, sixes, not_out, innings!inner(match_id)').eq('player_id', pid),
+      supabase.from('bowling_records').select('innings_id, balls_bowled, runs_conceded, wickets, dot_balls, innings!inner(match_id)').eq('player_id', pid),
+      supabase.from('fielding_credits').select('innings_id, kind, innings!inner(match_id)').eq('player_id', pid),
+      supabase.from('seasons').select('id, number'),
+    ]).then(([pRes, sqRes, batRes, bowlRes, fieldRes, sRes]) => {
+      if (pRes.error || sqRes.error || batRes.error || bowlRes.error || fieldRes.error || sRes.error) {
+        setStats(null)
+        return
+      }
+      const seasonNumById = {}
+      for (const s of sRes.data) seasonNumById[s.id] = s.number
+      setStats(computePlayerStats(pRes.data, sqRes.data, batRes.data, bowlRes.data, fieldRes.data, seasonNumById))
+    }).catch(() => setStats(null)).finally(() => setStatsLoading(false))
+  }, [selected])
+
+  // ── keyboard shortcuts ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    function onKey(e) {
+      const tag = document.activeElement?.tagName
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+      if (e.key === 'Escape') {
+        setSelected(null); setStats(null)
+        setSearchQuery(''); setSalePrice(''); setBuyerTeamId('')
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // ── toast helper ─────────────────────────────────────────────────────────────
+
+  function toast(msg) {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(''), 3500)
+  }
+
+  // ── derived state ────────────────────────────────────────────────────────────
+
+  const captainIds = useMemo(
+    () => new Set(s6Teams.map(t => t.captain_s6_player_id).filter(Boolean)),
+    [s6Teams]
+  )
+  const soldIds = useMemo(
+    () => new Set(sales.filter(s => !s.voided).map(s => s.s6_player_id)),
+    [sales]
+  )
+  const available = useMemo(
+    () => s6Players.filter(p => !captainIds.has(p.id) && !soldIds.has(p.id)),
+    [s6Players, captainIds, soldIds]
+  )
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const pool = q ? available.filter(p => p.name.toLowerCase().includes(q)) : available
+    return pool.slice(0, 15)
+  }, [available, searchQuery])
+
+  const teamInfo = useMemo(() => s6Teams.map(team => {
+    const teamSales = sales.filter(s => !s.voided && s.s6_team_id === team.id)
+    const spent = teamSales.reduce((sum, s) => sum + s.price, 0)
+    return { ...team, spent, remaining: team.budget_total - spent, slotsUsed: teamSales.length, slotsLeft: MAX_SLOTS - teamSales.length }
+  }), [s6Teams, sales])
+
+  const priceNum = Number(salePrice) || 0
+  const noEligibleBuyer = selected && priceNum > 0 &&
+    teamInfo.every(t => t.slotsLeft <= 0 || t.remaining < priceNum)
+
+  const footerStats = useMemo(() => {
+    const r = {}
+    for (const cat of CATEGORIES) {
+      const catPool = s6Players.filter(p => p.category === cat && !captainIds.has(p.id))
+      r[cat] = { total: catPool.length, left: catPool.filter(p => !soldIds.has(p.id)).length }
+    }
+    return r
+  }, [s6Players, captainIds, soldIds])
+
+  const totalSold = sales.filter(s => !s.voided).length
+
+  // ── sell ─────────────────────────────────────────────────────────────────────
+
+  async function handleSell() {
+    if (!selected || !buyerTeamId || priceNum <= 0 || selling) return
+    const team = teamInfo.find(t => t.id === buyerTeamId)
+    if (!team || team.slotsLeft <= 0 || team.remaining < priceNum) return
+
+    setSelling(true)
+    const tempId = `opt-${Date.now()}`
+    const optimistic = { id: tempId, s6_player_id: selected.id, s6_team_id: buyerTeamId, price: priceNum, voided: false, sold_at: new Date().toISOString() }
+    setSales(prev => [...prev, optimistic])
+    setLastSale({ saleId: null, playerName: selected.name, teamName: team.name, price: priceNum })
+    const prevSelected = selected
+    setSelected(null); setStats(null); setSearchQuery(''); setSalePrice(''); setBuyerTeamId('')
+    setTimeout(() => searchRef.current?.focus(), 50)
+
+    const { data, error: insertErr } = await supabase
+      .from('auction_sales')
+      .insert({ s6_player_id: prevSelected.id, s6_team_id: buyerTeamId, price: priceNum })
+      .select().single()
+
+    if (insertErr) {
+      setSales(prev => prev.filter(s => s.id !== tempId))
+      setLastSale(null)
+      toast('Sale failed — please retry')
+    } else {
+      setSales(prev => prev.map(s => s.id === tempId ? data : s))
+      setLastSale(prev => prev ? { ...prev, saleId: data.id } : null)
+    }
+    setSelling(false)
+  }
+
+  async function handleUndo() {
+    if (!lastSale?.saleId) return
+    const { error: updErr } = await supabase
+      .from('auction_sales').update({ voided: true }).eq('id', lastSale.saleId)
+    if (updErr) { toast('Undo failed'); return }
+    setSales(prev => prev.map(s => s.id === lastSale.saleId ? { ...s, voided: true } : s))
+    setLastSale(null)
+  }
+
+  function selectPlayer(p) {
+    setSelected(p)
+    setSalePrice(String(p.base_price))
+    setBuyerTeamId('')
+    setSearchQuery('')
+    setSearchOpen(false)
+    setTimeout(() => priceRef.current?.focus(), 50)
+  }
+
+  const sellDisabled = !selected || !buyerTeamId || priceNum <= 0 || selling ||
+    (() => { const t = teamInfo.find(t => t.id === buyerTeamId); return t && (t.slotsLeft <= 0 || t.remaining < priceNum) })()
+
+  const onSellKey = e => { if (e.key === 'Enter') handleSell() }
+
+  // ── render ───────────────────────────────────────────────────────────────────
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <span style={{ color: 'var(--color-text)' }} className="text-sm animate-pulse">Loading…</span>
+    </div>
+  )
+  if (error) return <p style={{ color: '#f87171' }} className="text-sm">{error}</p>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+
+      {/* Toast */}
+      {toastMsg && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#7f1d1d', color: '#fca5a5', border: '1px solid #f87171',
+          borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, zIndex: 100,
+        }}>
+          {toastMsg}
+        </div>
+      )}
+
+      {/* Two-panel layout */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+
+        {/* ── Left panel (60%) ────────────────────────────────────────────── */}
+        <div style={{ flex: '0 0 60%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {available.length === 0 && !loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}>
+              <p style={{ color: 'var(--color-heading)', fontSize: 18, fontWeight: 600 }}>
+                🎉 All players auctioned!
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Search */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={searchRef}
+                  type="search"
+                  placeholder="Search player… (press / to focus)"
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
+                  onFocus={() => setSearchOpen(true)}
+                  onBlur={() => { if (!selecting.current) setSearchOpen(false) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && searchResults.length > 0) selectPlayer(searchResults[0])
+                    if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
+                  }}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                    color: 'var(--color-heading)', borderRadius: 10, padding: '12px 16px',
+                    fontSize: 16, outline: 'none',
+                  }}
+                />
+                {searchOpen && searchResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40,
+                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                    borderRadius: 10, marginTop: 4, overflow: 'hidden',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  }}>
+                    {searchResults.map(p => (
+                      <div
+                        key={p.id}
+                        onMouseDown={() => { selecting.current = true }}
+                        onClick={() => { selecting.current = false; selectPlayer(p) }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}
+                        className="hover:bg-blue-500/10"
+                      >
+                        <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                          {p.category}
+                        </span>
+                        <span style={{ color: 'var(--color-heading)', fontSize: 14, fontWeight: 500 }}>{p.name}</span>
+                        <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>{p.base_price.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Stat card */}
+              {selected && (
+                <PlayerStatCard player={selected} stats={stats} statsLoading={statsLoading} />
+              )}
+              {!selected && (
+                <div style={{ border: '1px dashed var(--color-border)', borderRadius: 12, padding: 32, textAlign: 'center' }}>
+                  <p style={{ color: 'var(--color-text)', fontSize: 14 }}>Search and select a player to see their stats</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── Right panel (40%) ───────────────────────────────────────────── */}
+        <div style={{ flex: '0 0 40%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Sale Price */}
+            <div>
+              <label style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
+                Sale Price
+              </label>
+              <input
+                ref={priceRef}
+                type="number"
+                value={salePrice}
+                onChange={e => setSalePrice(e.target.value)}
+                onKeyDown={onSellKey}
+                placeholder="Enter price…"
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '10px 12px', fontSize: 18, fontWeight: 700, outline: 'none' }}
+              />
+            </div>
+
+            {/* Buyer Team */}
+            <div>
+              <label style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
+                Buyer Team
+              </label>
+              <select
+                value={buyerTeamId}
+                onChange={e => setBuyerTeamId(e.target.value)}
+                onKeyDown={onSellKey}
+                style={{ width: '100%', background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none' }}
+              >
+                <option value="">Select team…</option>
+                {teamInfo.map(t => {
+                  const ineligible = t.slotsLeft <= 0 || t.remaining < priceNum
+                  return (
+                    <option key={t.id} value={t.id} disabled={ineligible}>
+                      {t.name} · {t.slotsLeft}/{MAX_SLOTS} slots · {t.remaining.toLocaleString()} left
+                    </option>
+                  )
+                })}
+              </select>
+              {noEligibleBuyer && (
+                <p style={{ color: '#f59e0b', fontSize: 12, marginTop: 6 }}>
+                  No team can buy this player at {priceNum.toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            {/* Sell button */}
+            <button
+              onClick={handleSell}
+              disabled={sellDisabled}
+              style={{
+                background: sellDisabled ? 'var(--color-border)' : '#22c55e',
+                color: sellDisabled ? 'var(--color-text)' : '#fff',
+                border: 'none', borderRadius: 10, padding: '14px 0',
+                fontSize: 16, fontWeight: 700, cursor: sellDisabled ? 'default' : 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              {selling ? 'Selling…' : 'Sell'}
+            </button>
+
+            {/* Last sale */}
+            {lastSale && (
+              <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ color: '#86efac', fontSize: 12 }}>
+                  {lastSale.playerName} → {lastSale.teamName} · {lastSale.price.toLocaleString()}
+                </span>
+                <button
+                  onClick={handleUndo}
+                  disabled={!lastSale.saleId}
+                  style={{ color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 6, padding: '2px 10px', fontSize: 12, cursor: lastSale.saleId ? 'pointer' : 'default', opacity: lastSale.saleId ? 1 : 0.4 }}
+                >
+                  Undo
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Footer strip ────────────────────────────────────────────────────── */}
+      <div style={{ marginTop: 20, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 16px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+        <span style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>Players left</span>
+        {CATEGORIES.map(cat => {
+          const { left, total } = footerStats[cat] ?? { left: 0, total: 0 }
+          const pal = CAT_PALETTE[cat]
+          return (
+            <span key={cat} style={{ color: left === 0 ? '#34d399' : pal.label, fontSize: 13, fontWeight: 600 }}>
+              {cat}: {left}/{total}
+            </span>
+          )
+        })}
+        <span style={{ color: 'var(--color-border)', fontSize: 12 }}>·</span>
+        <span style={{ color: 'var(--color-text)', fontSize: 12 }}>
+          {totalSold} sold
+        </span>
       </div>
     </div>
   )
@@ -804,10 +1313,11 @@ function AuctionApp() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {activeTab === 'Setup'      && <SetupTab />}
-        {activeTab === 'Categories' && <CategoriesTab />}
-        {!['Setup', 'Categories'].includes(activeTab) && (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        {activeTab === 'Setup'        && <SetupTab />}
+        {activeTab === 'Categories'   && <CategoriesTab />}
+        {activeTab === 'Live Auction' && <LiveAuctionTab />}
+        {!['Setup', 'Categories', 'Live Auction'].includes(activeTab) && (
           <div className="flex items-center justify-center py-20">
             <p style={{ color: 'var(--color-text)' }} className="text-sm italic">
               {activeTab} — coming soon
