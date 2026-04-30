@@ -1058,6 +1058,10 @@ function LiveAuctionTab() {
   // ── undo confirm ──────────────────────────────────────────────────────────
   const [undoConfirm, setUndoConfirm] = useState(false)
 
+  // ── manual override ───────────────────────────────────────────────────────
+  const [showOverride,     setShowOverride]     = useState(false)
+  const [forceAllowTeamId, setForceAllowTeamId] = useState(null) // bypasses cat-eligibility once
+
   // ── toast ─────────────────────────────────────────────────────────────────
   const [toastMsg, setToastMsg] = useState('')
 
@@ -1289,6 +1293,7 @@ function LiveAuctionTab() {
     const team = teamInfo.find(t => t.id === highBidder)
     if (!team || team.slotsLeft <= 0 || team.remaining < currentBid) return
     setSelling(true)
+    setForceAllowTeamId(null)
     const tempId = `opt-${Date.now()}`
     const salePayload = { s6_player_id: selected.id, s6_team_id: highBidder, price: currentBid }
     setSales(prev => [...prev, { id: tempId, ...salePayload, voided: false, sold_at: new Date().toISOString() }])
@@ -1316,6 +1321,41 @@ function LiveAuctionTab() {
     toast('Undone')
   }
 
+  async function voidSale(saleId) {
+    const sale = sales.find(s => s.id === saleId)
+    if (!sale) return
+    const player = s6Players.find(p => p.id === sale.s6_player_id)
+    const team   = s6Teams.find(t => t.id === sale.s6_team_id)
+    const msg = `Undo: ${player?.name ?? '?'} → ${team?.name ?? '?'} for ${Number(sale.price).toLocaleString()}?`
+    if (!window.confirm(msg)) return
+    const { error: updErr } = await supabase.from('auction_sales').update({ voided: true }).eq('id', saleId)
+    if (updErr) { toast('Undo failed'); return }
+    setSales(prev => prev.map(s => s.id === saleId ? { ...s, voided: true } : s))
+    toast('Undone')
+  }
+
+  async function handleAutoAlloc() {
+    if (!selected || !autoAllocTeam || selling) return
+    const price = autoAllocPrice
+    setSelling(true)
+    const tempId = `opt-${Date.now()}`
+    const salePayload = { s6_player_id: selected.id, s6_team_id: autoAllocTeam.id, price }
+    setSales(prev => [...prev, { id: tempId, ...salePayload, voided: false, sold_at: new Date().toISOString() }])
+    const captured = { playerName: selected.name, teamName: autoAllocTeam.name, price, teamColor: autoAllocTeam.color }
+    setForceAllowTeamId(null)
+    clearPlayer()
+    const { data, error: insertErr } = await supabase.from('auction_sales').insert(salePayload).select().single()
+    if (insertErr) {
+      setSales(prev => prev.filter(s => s.id !== tempId))
+      setSelling(false)
+      toast('Auto-alloc failed — please retry')
+      return
+    }
+    setSales(prev => prev.map(s => s.id === tempId ? data : s))
+    setSelling(false)
+    triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
+  }
+
   // ── derived state ──────────────────────────────────────────────────────────
 
   const captainIds = useMemo(
@@ -1336,11 +1376,39 @@ function LiveAuctionTab() {
     return pool.slice(0, 12)
   }, [available, searchQuery])
 
+  // Shape X = 1A·3B·3C·1D  Shape Y = 2A·2B·2C·2D  (captain pre-counts as 1B)
+  const CAT_MAX = {
+    null: { A: 2, B: 3, C: 3, D: 2 }, // max across both shapes
+    X:    { A: 1, B: 3, C: 3, D: 1 },
+    Y:    { A: 2, B: 2, C: 2, D: 2 },
+  }
+  const MAX_PURCHASES = 7 // captain fills 1 of 8 slots
+
   const teamInfo = useMemo(() => s6Teams.map(team => {
     const ts = sales.filter(s => !s.voided && s.s6_team_id === team.id)
     const spent = ts.reduce((sum, s) => sum + s.price, 0)
-    return { ...team, spent, remaining: team.budget_total - spent, slotsUsed: ts.length, slotsLeft: MAX_SLOTS - ts.length }
-  }), [s6Teams, sales])
+    // Category counts — captain pre-fills B=1
+    const catCounts = { A: 0, B: team.captain_s6_player_id ? 1 : 0, C: 0, D: 0 }
+    for (const sale of ts) {
+      const p = s6Players.find(px => px.id === sale.s6_player_id)
+      if (p) catCounts[p.category] = (catCounts[p.category] || 0) + 1
+    }
+    // Shape lock: Y when 2A or 2D bought, X when 3B or 3C (cap+2) bought
+    let lockedShape = null
+    if (catCounts.A >= 2 || catCounts.D >= 2) lockedShape = 'Y'
+    else if (catCounts.B >= 3 || catCounts.C >= 3) lockedShape = 'X'
+    const slotsUsed = ts.length
+    const slotsLeft = MAX_PURCHASES - ts.length
+    return { ...team, spent, remaining: team.budget_total - spent, slotsUsed, slotsLeft, catCounts, lockedShape }
+  }), [s6Teams, sales, s6Players])
+
+  // Is a specific team eligible to bid for a player in cat?
+  function teamCatEligible(team, cat) {
+    if (team.id === forceAllowTeamId) return true
+    if (team.slotsLeft <= 0) return false
+    const max = (CAT_MAX[team.lockedShape] ?? CAT_MAX[null])[cat]
+    return team.catCounts[cat] < max
+  }
 
   const footerStats = useMemo(() => {
     const r = {}
@@ -1378,8 +1446,50 @@ function LiveAuctionTab() {
   const inc = selected ? BID_INCREMENT[selected.category] : 0
   const nextBidPrice = selected ? (highBidder === null ? currentBid : currentBid + inc) : 0
   const highBidderTeam = highBidder ? teamInfo.find(t => t.id === highBidder) : null
-  const allTeamsBroke = selected && teamInfo.length > 0 &&
-    teamInfo.every(t => t.id === highBidder || t.slotsLeft <= 0 || t.remaining < nextBidPrice)
+
+  // Category-eligible teams for selected player
+  const eligibleTeams = useMemo(() =>
+    selected ? teamInfo.filter(t => teamCatEligible(t, selected.category)) : [],
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [selected, teamInfo, forceAllowTeamId])
+
+  const autoAllocMode = selected && eligibleTeams.length === 1
+  const autoAllocTeam = autoAllocMode ? eligibleTeams[0] : null
+
+  // Auto-alloc price: average of sold prices in this category, rounded UP to increment, min base_price
+  const autoAllocPrice = useMemo(() => {
+    if (!selected) return 0
+    const cat = selected.category
+    const catInc = BID_INCREMENT[cat]
+    const soldInCat = sales.filter(s => {
+      if (s.voided) return false
+      const p = s6Players.find(px => px.id === s.s6_player_id)
+      return p?.category === cat
+    })
+    if (!soldInCat.length) return selected.base_price
+    const avg = soldInCat.reduce((sum, s) => sum + Number(s.price), 0) / soldInCat.length
+    return Math.max(selected.base_price, Math.ceil(avg / catInc) * catInc)
+  }, [selected, sales, s6Players])
+
+  // Running averages per category (rounded to nearest increment)
+  const catAverages = useMemo(() => {
+    const r = {}
+    for (const cat of CATEGORIES) {
+      const catInc = BID_INCREMENT[cat]
+      const soldInCat = sales.filter(s => {
+        if (s.voided) return false
+        const p = s6Players.find(px => px.id === s.s6_player_id)
+        return p?.category === cat
+      })
+      if (!soldInCat.length) { r[cat] = null; continue }
+      const avg = soldInCat.reduce((sum, s) => sum + Number(s.price), 0) / soldInCat.length
+      r[cat] = Math.round(avg / catInc) * catInc
+    }
+    return r
+  }, [sales, s6Players])
+
+  const allTeamsBroke = selected && !autoAllocMode && teamInfo.length > 0 &&
+    teamInfo.every(t => t.id === highBidder || !teamCatEligible(t, selected.category) || t.remaining < nextBidPrice)
 
   function fmtBid(n) {
     if (Number.isInteger(n)) return n.toLocaleString()
@@ -1434,15 +1544,90 @@ function LiveAuctionTab() {
         </div>
       )}
 
-      {/* Undo — top-right meta action, visible in both idle and bidding states */}
-      {lastNonVoidedSale && !soldOverlay && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+      {/* Top bar: undo + running averages + manual override */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        {/* Running averages */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ color: '#6b7280', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>Avg</span>
+          {CATEGORIES.map((cat, i) => {
+            const avg = catAverages[cat]
+            const pal = CAT_PALETTE[cat]
+            return (
+              <span key={cat} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {i > 0 && <span style={{ color: 'var(--color-border)', fontSize: 11 }}>·</span>}
+                <span style={{ background: pal.bg, border: `1px solid ${pal.border}`, borderRadius: 4, padding: '1px 7px', fontSize: 11, display: 'inline-flex', gap: 3 }}>
+                  <span style={{ color: pal.label, fontWeight: 700 }}>{cat}</span>
+                  <span style={{ color: avg !== null ? pal.text : '#6b7280', fontWeight: avg !== null ? 600 : 400 }}>
+                    {avg !== null ? avg.toLocaleString() : '—'}
+                  </span>
+                </span>
+              </span>
+            )
+          })}
+          <button onClick={() => setShowOverride(true)} style={{ color: '#6b7280', background: 'transparent', border: 'none', padding: '1px 4px', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0 }}>
+            Manual override
+          </button>
+        </div>
+        {/* Undo last sale */}
+        {lastNonVoidedSale && !soldOverlay && (
           <button
             onClick={() => setUndoConfirm(true)}
-            style={{ color: '#6b7280', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+            style={{ color: '#6b7280', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
           >
             ↶ Undo last sale
           </button>
+        )}
+      </div>
+
+      {/* Manual override modal */}
+      {showOverride && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 24, maxWidth: 480, width: '92%', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <span style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 700 }}>Manual Override</span>
+              <button onClick={() => setShowOverride(false)} style={{ color: '#6b7280', background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Force-allow paddle */}
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Force-allow paddle (single use)</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {teamInfo.map(t => (
+                  <button key={t.id}
+                    onClick={() => { setForceAllowTeamId(t.id); toast(`Force-allow: ${t.name}`); setShowOverride(false) }}
+                    style={{ background: forceAllowTeamId === t.id ? t.color : 'var(--color-bg)', color: forceAllowTeamId === t.id ? captainTextColor(t.color) : 'var(--color-text)', border: `1px solid ${t.color}`, borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+                {forceAllowTeamId && (
+                  <button onClick={() => setForceAllowTeamId(null)} style={{ color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Void any sale */}
+            <div>
+              <p style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Void any sale</p>
+              {sales.filter(s => !s.voided).length === 0
+                ? <p style={{ color: '#6b7280', fontSize: 12, fontStyle: 'italic' }}>No sales to void.</p>
+                : sales.filter(s => !s.voided).map(s => {
+                    const p = s6Players.find(px => px.id === s.s6_player_id)
+                    const t = s6Teams.find(tx => tx.id === s.s6_team_id)
+                    return (
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--color-border)' }}>
+                        <span style={{ flex: 1, color: 'var(--color-heading)', fontSize: 12 }}>{p?.name ?? '?'}</span>
+                        <span style={{ color: 'var(--color-text)', fontSize: 11 }}>→ {t?.name ?? '?'}</span>
+                        <span style={{ color: '#6b7280', fontSize: 11, minWidth: 46, textAlign: 'right' }}>{Number(s.price).toLocaleString()}</span>
+                        <button onClick={() => { voidSale(s.id) }} style={{ color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 5, padding: '2px 8px', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>Void</button>
+                      </div>
+                    )
+                  })
+              }
+            </div>
+          </div>
         </div>
       )}
 
@@ -1556,56 +1741,79 @@ function LiveAuctionTab() {
             </div>
           </div>
 
-          {/* Current bid strip */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '5px 14px', animation: 'slideUp 0.2s ease 0.1s both' }}>
-            {/* Single compact row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 36 }}>
-              {highBidder ? (
-                <>
-                  <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Bid</span>
-                  <span style={{ color: 'var(--color-heading)', fontSize: 28, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtBid(displayBid)}</span>
-                  <span style={{ color: 'var(--color-border)', flexShrink: 0 }}>·</span>
-                  <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Held by</span>
-                  <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: '#fff', borderRadius: 20, padding: '3px 12px', fontSize: 13, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both', flexShrink: 0 }}>
-                    {highBidderTeam?.name}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span style={{ color: 'var(--color-text)', fontSize: 13 }}>Awaiting first bid</span>
-                  <span style={{ color: 'var(--color-border)' }}>·</span>
-                  <span style={{ color: 'var(--color-heading)', fontSize: 13, fontWeight: 700 }}>Base {selected.base_price.toLocaleString()}</span>
-                </>
+          {/* Auto-allocation panel OR normal bid strip */}
+          {autoAllocMode ? (
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 10, padding: '14px 18px', animation: 'slideUp 0.2s ease 0.1s both' }}>
+              <div style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                Auto-allocation — forced sale
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--color-heading)', fontSize: 15 }}>
+                  Only eligible team: <strong style={{ color: autoAllocTeam.color }}>{autoAllocTeam.name}</strong>
+                </span>
+                <span style={{ color: 'var(--color-border)' }}>·</span>
+                <span style={{ color: 'var(--color-text)', fontSize: 13 }}>
+                  Calculated price: <strong style={{ color: 'var(--color-heading)' }}>{autoAllocPrice.toLocaleString()}</strong>
+                  {autoAllocTeam.remaining < autoAllocPrice && (
+                    <span style={{ color: '#f87171', marginLeft: 8, fontSize: 11 }}>(over budget — will go negative)</span>
+                  )}
+                </span>
+              </div>
+              {eligibleTeams.length === 0 && (
+                <p style={{ color: '#f87171', fontSize: 12, margin: '8px 0 0' }}>⚠ No eligible team — all full in this category. Skip this player.</p>
               )}
-              <button
-                onClick={() => setShowManualBid(v => !v)}
-                style={{ marginLeft: 'auto', color: '#6b7280', background: 'transparent', border: 'none', padding: '2px 6px', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0, whiteSpace: 'nowrap' }}
-              >
-                {showManualBid ? 'close' : 'set manually'}
-              </button>
             </div>
+          ) : (
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '5px 14px', animation: 'slideUp 0.2s ease 0.1s both' }}>
+              {/* Single compact row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 36 }}>
+                {highBidder ? (
+                  <>
+                    <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Bid</span>
+                    <span style={{ color: 'var(--color-heading)', fontSize: 28, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtBid(displayBid)}</span>
+                    <span style={{ color: 'var(--color-border)', flexShrink: 0 }}>·</span>
+                    <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Held by</span>
+                    <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: captainTextColor(highBidderTeam?.color || '#3b82f6'), borderRadius: 20, padding: '3px 12px', fontSize: 13, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both', flexShrink: 0 }}>
+                      {highBidderTeam?.name}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color: 'var(--color-text)', fontSize: 13 }}>Awaiting first bid</span>
+                    <span style={{ color: 'var(--color-border)' }}>·</span>
+                    <span style={{ color: 'var(--color-heading)', fontSize: 13, fontWeight: 700 }}>Base {selected.base_price.toLocaleString()}</span>
+                  </>
+                )}
+                <button
+                  onClick={() => setShowManualBid(v => !v)}
+                  style={{ marginLeft: 'auto', color: '#6b7280', background: 'transparent', border: 'none', padding: '2px 6px', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  {showManualBid ? 'close' : 'set manually'}
+                </button>
+              </div>
 
-            {/* Manual bid form */}
-            {showManualBid && (
-              <form onSubmit={applyManualBid} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                <span style={{ color: 'var(--color-text)', fontSize: 12 }}>Set bid to:</span>
-                <input type="number" value={manualBidInput} onChange={e => setManualBidInput(e.target.value)} step="0.5" placeholder="price" style={{ width: 70, background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }} />
-                <span style={{ color: 'var(--color-text)', fontSize: 12 }}>for:</span>
-                <select value={manualBidTeamId} onChange={e => setManualBidTeamId(e.target.value)} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 12, outline: 'none' }}>
-                  <option value="">Team…</option>
-                  {teamInfo.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                <button type="submit" style={{ background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Set</button>
-              </form>
-            )}
+              {/* Manual bid form */}
+              {showManualBid && (
+                <form onSubmit={applyManualBid} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
+                  <span style={{ color: 'var(--color-text)', fontSize: 12 }}>Set bid to:</span>
+                  <input type="number" value={manualBidInput} onChange={e => setManualBidInput(e.target.value)} step="0.5" placeholder="price" style={{ width: 70, background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }} />
+                  <span style={{ color: 'var(--color-text)', fontSize: 12 }}>for:</span>
+                  <select value={manualBidTeamId} onChange={e => setManualBidTeamId(e.target.value)} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 12, outline: 'none' }}>
+                    <option value="">Team…</option>
+                    {teamInfo.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <button type="submit" style={{ background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Set</button>
+                </form>
+              )}
 
-            {highBidder && allTeamsBroke && (
-              <p style={{ color: '#34d399', fontSize: 11, margin: '6px 0 0' }}>No other team can outbid — ready to sell to {highBidderTeam?.name}.</p>
-            )}
-            {!highBidder && allTeamsBroke && (
-              <p style={{ color: '#f59e0b', fontSize: 11, margin: '6px 0 0' }}>No team can bid at this base price. Adjust manually or pass.</p>
-            )}
-          </div>
+              {highBidder && allTeamsBroke && (
+                <p style={{ color: '#34d399', fontSize: 11, margin: '6px 0 0' }}>No other team can outbid — ready to sell to {highBidderTeam?.name}.</p>
+              )}
+              {!highBidder && allTeamsBroke && (
+                <p style={{ color: '#f59e0b', fontSize: 11, margin: '6px 0 0' }}>No team can bid at this base price. Adjust manually or pass.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1618,10 +1826,17 @@ function LiveAuctionTab() {
           const isHighBidder = team.id === highBidder
           const canAffordNext = team.remaining >= nextBidPrice
           const hasSlots = team.slotsLeft > 0
-          const disabled = !selected || !hasSlots || !canAffordNext
+          const catOk = !selected || teamCatEligible(team, selected.category)
+          const disabled = !selected || !hasSlots || !canAffordNext || !catOk || autoAllocMode
           const isPulsing = pulsePaddle === team.id
-          const paddleActive = selected && (isHighBidder || !disabled)
+          const paddleActive = selected && !autoAllocMode && (isHighBidder || !disabled)
           const btnTextColor = paddleActive ? captainTextColor(team.color) : (!selected ? 'var(--color-border)' : 'var(--color-text)')
+          const tooltipMsg = !selected ? undefined
+            : autoAllocMode ? 'Auto-allocation active'
+            : !hasSlots ? 'No slots left'
+            : !catOk ? 'Cat full'
+            : !canAffordNext ? 'Out of budget'
+            : undefined
           return (
             <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
               <span style={{ color: selected ? team.color : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 400, fontVariantNumeric: 'tabular-nums', opacity: selected ? (isHighBidder ? 1 : 0.7) : 1 }}>
@@ -1630,54 +1845,61 @@ function LiveAuctionTab() {
               <button
                 onClick={() => handlePaddleClick(team.id)}
                 disabled={disabled && !isHighBidder}
-                title={!hasSlots ? 'No slots left' : !canAffordNext && selected ? 'Out of budget' : undefined}
+                title={tooltipMsg}
                 style={{
                   width: '100%', flex: 1,
-                  background: !selected ? 'var(--color-surface)' : isHighBidder ? team.color : disabled ? 'rgba(255,255,255,0.04)' : team.color,
+                  background: !selected || autoAllocMode ? 'var(--color-surface)' : isHighBidder ? team.color : disabled ? 'rgba(255,255,255,0.04)' : team.color,
                   color: btnTextColor,
-                  border: isHighBidder
+                  border: isHighBidder && !autoAllocMode
                     ? '2px solid rgba(255,255,255,0.85)'
                     : paddleActive ? '2px solid rgba(255,255,255,0.35)'
                     : `2px solid ${!selected ? 'var(--color-border)' : 'rgba(255,255,255,0.08)'}`,
                   borderRadius: 12, padding: '13px 8px', fontSize: 14, fontWeight: 700,
                   cursor: (!selected || (disabled && !isHighBidder)) ? 'default' : 'pointer',
-                  opacity: !selected ? 0.4 : (disabled && !isHighBidder) ? 0.3 : 1,
+                  opacity: !selected || autoAllocMode ? 0.3 : (disabled && !isHighBidder) ? 0.25 : 1,
                   transform: isPulsing ? 'scale(1.06)' : 'scale(1)',
                   transition: 'transform 0.15s, opacity 0.2s, background 0.15s, border-color 0.15s',
-                  boxShadow: isHighBidder ? `0 0 22px ${team.color}66` : 'none',
+                  boxShadow: isHighBidder && !autoAllocMode ? `0 0 22px ${team.color}66` : 'none',
+                  position: 'relative',
                 }}
               >
                 {team.name}
+                {selected && !catOk && !autoAllocMode && (
+                  <span style={{ position: 'absolute', bottom: 4, left: 0, right: 0, fontSize: 9, color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontWeight: 400 }}>Cat full</span>
+                )}
               </button>
             </div>
           )
         })}
 
-        {/* SOLD — same height as paddles, distinct colour */}
+        {/* SOLD / Confirm allocation button */}
         {(() => {
-          const soldActive = !!(selected && highBidder && !selling)
+          const soldActive = !!(selected && highBidder && !selling && !autoAllocMode)
+          const allocActive = !!(autoAllocMode && autoAllocTeam && !selling)
+          const anyActive = soldActive || allocActive
           return (
             <div style={{ flexShrink: 0, width: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
               <span style={{ fontSize: 11, color: 'transparent', userSelect: 'none' }}>·</span>
               <button
-                onClick={handleSell}
-                disabled={!soldActive}
+                onClick={allocActive ? handleAutoAlloc : handleSell}
+                disabled={!anyActive}
                 style={{
                   width: '100%', flex: 1,
-                  background: soldActive ? '#F2C033' : 'rgba(255,255,255,0.04)',
-                  color: soldActive ? '#1a1200' : '#6b7280',
-                  border: `2px solid ${soldActive ? '#F2C033' : 'rgba(255,255,255,0.08)'}`,
+                  background: anyActive ? '#F2C033' : 'rgba(255,255,255,0.04)',
+                  color: anyActive ? '#1a1200' : '#6b7280',
+                  border: `2px solid ${anyActive ? '#F2C033' : 'rgba(255,255,255,0.08)'}`,
                   borderRadius: 30,
                   padding: '13px 10px',
-                  fontSize: 18, fontWeight: 900,
-                  cursor: soldActive ? 'pointer' : 'default',
-                  opacity: soldActive ? 1 : 0.35,
+                  fontSize: allocActive ? 13 : 18, fontWeight: 900,
+                  cursor: anyActive ? 'pointer' : 'default',
+                  opacity: anyActive ? 1 : 0.35,
                   transition: 'background 0.15s, opacity 0.2s',
                   letterSpacing: '0.04em',
-                  animation: soldActive ? 'soldPulse 1.5s ease-in-out infinite' : 'none',
+                  animation: anyActive ? 'soldPulse 1.5s ease-in-out infinite' : 'none',
+                  lineHeight: 1.2,
                 }}
               >
-                {selling ? '…' : '🔨 SOLD'}
+                {selling ? '…' : allocActive ? '✓ Confirm' : '🔨 SOLD'}
               </button>
             </div>
           )
