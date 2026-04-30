@@ -568,6 +568,13 @@ const CAT_PALETTE = {
   D: { bg: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.35)',  text: '#c4b5fd',  label: '#ddd6fe' },
 }
 
+const COLUMN_BIDDING = {
+  A: { base: '2,000', inc: '500' },
+  B: { base: '1,000', inc: '300' },
+  C: { base: '500',   inc: '200' },
+  D: { base: '200',   inc: '100' },
+}
+
 // Returns '#fff' or '#111' based on background hex luminance
 function captainTextColor(hex) {
   try {
@@ -582,6 +589,7 @@ function captainTextColor(hex) {
 
 function CategoryColumn({ category, players }) {
   const pal = CAT_PALETTE[category]
+  const bid = COLUMN_BIDDING[category]
   return (
     <div style={{
       background: pal.bg,
@@ -590,6 +598,8 @@ function CategoryColumn({ category, players }) {
       overflow: 'hidden',
       flex: 1,
       minWidth: 0,
+      display: 'flex',
+      flexDirection: 'column',
     }}>
       {/* column header */}
       <div style={{
@@ -603,7 +613,7 @@ function CategoryColumn({ category, players }) {
       </div>
 
       {/* player list */}
-      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
         {players.length === 0 ? (
           <p style={{ color: MUTED, fontSize: 12, fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
             No players assigned
@@ -616,6 +626,12 @@ function CategoryColumn({ category, players }) {
             <span style={{ color: HEADING, fontSize: 13, whiteSpace: 'nowrap' }}>{p.name}</span>
           </div>
         ))}
+      </div>
+
+      {/* bidding footer */}
+      <div style={{ borderTop: `1px solid ${pal.border}`, padding: '7px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ color: MUTED, fontSize: 10.5 }}>Base price: <span style={{ color: pal.text, fontWeight: 600 }}>{bid.base}</span></span>
+        <span style={{ color: MUTED, fontSize: 10.5 }}>Increments by <span style={{ color: pal.text, fontWeight: 600 }}>{bid.inc}</span></span>
       </div>
     </div>
   )
@@ -750,6 +766,7 @@ function CategoriesTab() {
                   style={{
                     flex: 1, minWidth: 0,
                     background: card.teamColor,
+                    border: '2px solid rgba(255,255,255,0.35)',
                     borderRadius: 8,
                     padding: '10px 12px',
                     position: 'relative',
@@ -768,28 +785,6 @@ function CategoriesTab() {
           </div>
         )}
 
-        {/* Bidding rules strip */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ color: MUTED, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
-            Bidding
-          </span>
-          {[
-            { cat: 'A', base: '2,000', inc: '+500',  pal: CAT_PALETTE.A },
-            { cat: 'B', base: '1,000', inc: '+300',  pal: CAT_PALETTE.B },
-            { cat: 'C', base: '500',   inc: '+200',  pal: CAT_PALETTE.C },
-            { cat: 'D', base: '200',   inc: '+100',  pal: CAT_PALETTE.D },
-          ].map((b, i) => (
-            <span key={b.cat} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {i > 0 && <span style={{ color: BORDER, fontSize: 11, flexShrink: 0 }}>·</span>}
-              <span style={{ background: b.pal.bg, border: `1px solid ${b.pal.border}`, borderRadius: 4, padding: '2px 8px', fontSize: 11, display: 'inline-flex', gap: 3 }}>
-                <span style={{ color: b.pal.label, fontWeight: 700 }}>{b.cat}</span>
-                <span style={{ color: MUTED }}>{b.base} /</span>
-                <span style={{ color: b.pal.text, fontWeight: 600 }}>{b.inc}</span>
-              </span>
-            </span>
-          ))}
-        </div>
-
         {/* Divider */}
         <div style={{ height: 1, background: BORDER }} />
 
@@ -804,13 +799,6 @@ function CategoriesTab() {
           ))}
         </div>
 
-        {/* Divider */}
-        <div style={{ height: 1, background: BORDER }} />
-
-        {/* Footer */}
-        <p style={{ color: MUTED, fontSize: 11, textAlign: 'center', margin: 0 }}>
-          {s6Players.length} player{s6Players.length !== 1 ? 's' : ''} across {s6Teams.length} team{s6Teams.length !== 1 ? 's' : ''} · Auction budget: {budgetDisplay} per team
-        </p>
       </div>
 
       {/* Export button — below capture area, centred, not included in PNG */}
