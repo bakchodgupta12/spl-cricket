@@ -692,6 +692,11 @@ function CategoriesTab() {
     return `${Math.min(...budgets).toLocaleString()}–${Math.max(...budgets).toLocaleString()}`
   }, [s6Teams])
 
+  const maxBudget = useMemo(() => {
+    const budgets = s6Teams.map(t => t.budget_total).filter(Boolean)
+    return budgets.length ? Math.max(...budgets).toLocaleString() : null
+  }, [s6Teams])
+
   async function handleExport() {
     if (!captureRef.current || exporting) return
     setExporting(true)
@@ -783,6 +788,13 @@ function CategoriesTab() {
               )
             })}
           </div>
+        )}
+
+        {/* Budget context */}
+        {maxBudget && (
+          <p style={{ color: MUTED, fontSize: 11, textAlign: 'right', margin: 0 }}>
+            Each team has {maxBudget} to spend.
+          </p>
         )}
 
         {/* Divider */}
