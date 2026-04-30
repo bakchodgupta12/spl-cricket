@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toPng } from 'html-to-image'
+import confetti from 'canvas-confetti'
 import { ballsToOvers, fmtNum, fmtHalf, computePlayerStats } from '../lib/cricketStats'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -775,6 +776,7 @@ function CategoriesTab() {
 // ─── LiveAuctionTab ───────────────────────────────────────────────────────────
 
 const MAX_SLOTS = 8
+const BID_INCREMENT = { A: 1, B: 1, C: 0.5, D: 0.5 }
 
 // Compact stat display for the player card
 function LiveStatRow({ label, value }) {
@@ -882,31 +884,100 @@ function PlayerStatCard({ player, stats, statsLoading }) {
   )
 }
 
+function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, teamInfo }) {
+  const pal = CAT_PALETTE[category]
+  const left = players.filter(p => !soldIds.has(p.id)).length
+  const teamById = Object.fromEntries(teamInfo.map(t => [t.id, t]))
+  return (
+    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ background: pal.bg, borderBottom: `1px solid ${pal.border}`, padding: '10px 14px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ color: pal.label, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Category {category}
+        </span>
+        <span style={{ color: pal.text, fontSize: 12 }}>({left} / {players.length} left)</span>
+      </div>
+      <div style={{ padding: '6px 0', maxHeight: 340, overflowY: 'auto' }}>
+        {players.map(p => {
+          const isSold = soldIds.has(p.id)
+          const isActive = p.id === activeId
+          const sale = salesMap[p.id]
+          const saleTeam = sale ? teamById[sale.s6_team_id] : null
+          return (
+            <div key={p.id} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 14px',
+              background: isActive ? pal.bg : 'transparent',
+              borderLeft: isActive ? `3px solid ${pal.border.replace('0.35','0.8')}` : '3px solid transparent',
+            }}>
+              <span style={{
+                color: isSold ? 'var(--color-border)' : isActive ? pal.label : 'var(--color-heading)',
+                fontSize: 13, textDecoration: isSold ? 'line-through' : 'none',
+                opacity: isSold ? 0.55 : 1, flex: 1, minWidth: 0,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {p.name}
+              </span>
+              {isSold && saleTeam && (
+                <span style={{ color: 'var(--color-text)', fontSize: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  → {saleTeam.name} · ${sale.price}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function LiveAuctionTab() {
-  const [s6Players, setS6Players]   = useState([])
-  const [s6Teams,   setS6Teams]     = useState([])
-  const [sales,     setSales]       = useState([])
-  const [loading,   setLoading]     = useState(true)
-  const [error,     setError]       = useState(null)
+  // ── data ──────────────────────────────────────────────────────────────────
+  const [s6Players, setS6Players] = useState([])
+  const [s6Teams,   setS6Teams]   = useState([])
+  const [sales,     setSales]     = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState(null)
 
-  const [selected,      setSelected]      = useState(null)
-  const [stats,         setStats]         = useState(null)
-  const [statsLoading,  setStatsLoading]  = useState(false)
+  // ── player selection + stats ───────────────────────────────────────────────
+  const [selected,     setSelected]     = useState(null)
+  const [stats,        setStats]        = useState(null)
+  const [statsLoading, setStatsLoading] = useState(false)
 
+  // ── search ────────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen,  setSearchOpen]  = useState(false)
   const selecting = useRef(false)
 
-  const [salePrice,   setSalePrice]   = useState('')
-  const [buyerTeamId, setBuyerTeamId] = useState('')
-  const [selling,     setSelling]     = useState(false)
-  const [lastSale,    setLastSale]    = useState(null)   // { saleId, playerName, teamName, price }
-  const [toastMsg,    setToastMsg]    = useState('')
+  // ── bidding ───────────────────────────────────────────────────────────────
+  const [currentBid,  setCurrentBid]  = useState(0)
+  const [displayBid,  setDisplayBid]  = useState(0)
+  const [highBidder,  setHighBidder]  = useState(null) // s6_team_id | null
+  const [pulsePaddle, setPulsePaddle] = useState(null)
+  const bidAnimRef = useRef(null)
 
-  const searchRef  = useRef(null)
-  const priceRef   = useRef(null)
+  // ── selling ───────────────────────────────────────────────────────────────
+  const [selling,  setSelling]  = useState(false)
+  const [lastSale, setLastSale] = useState(null) // { saleId, playerName, teamName, price, teamColor }
 
-  // ── initial load ────────────────────────────────────────────────────────────
+  // ── celebration overlay ───────────────────────────────────────────────────
+  const [soldOverlay,       setSoldOverlay]       = useState(null)
+  const overlayAborted      = useRef(false)
+  const overlayTimeoutRef   = useRef(null)
+
+  // ── manual bid ────────────────────────────────────────────────────────────
+  const [showManualBid,  setShowManualBid]  = useState(false)
+  const [manualBidInput, setManualBidInput] = useState('')
+  const [manualBidTeamId,setManualBidTeamId]= useState('')
+
+  // ── undo confirm ──────────────────────────────────────────────────────────
+  const [undoConfirm, setUndoConfirm] = useState(false)
+
+  // ── toast ─────────────────────────────────────────────────────────────────
+  const [toastMsg, setToastMsg] = useState('')
+
+  const searchRef = useRef(null)
+
+  // ── initial load ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     async function load() {
@@ -914,7 +985,7 @@ function LiveAuctionTab() {
         const [pRes, tRes, sRes] = await Promise.all([
           supabase.from('s6_players').select('*').order('name'),
           supabase.from('s6_teams').select('*').order('name'),
-          supabase.from('auction_sales').select('*').eq('voided', false),
+          supabase.from('auction_sales').select('*'),
         ])
         if (pRes.error) throw pRes.error
         if (tRes.error) throw tRes.error
@@ -941,7 +1012,6 @@ function LiveAuctionTab() {
     const pid = selected.mapped_player_id
     setStatsLoading(true)
     setStats(null)
-
     Promise.all([
       supabase.from('players').select('id, canonical_name').eq('id', pid).single(),
       supabase.from('match_squads').select('match_id, team_id, is_captain, is_wk, teams!inner(name), matches!inner(id, date, match_type, file_name, season_id, winner_team_id, abandoned, team_a_id, team_b_id)').eq('player_id', pid),
@@ -950,43 +1020,151 @@ function LiveAuctionTab() {
       supabase.from('fielding_credits').select('innings_id, kind, innings!inner(match_id)').eq('player_id', pid),
       supabase.from('seasons').select('id, number'),
     ]).then(([pRes, sqRes, batRes, bowlRes, fieldRes, sRes]) => {
-      if (pRes.error || sqRes.error || batRes.error || bowlRes.error || fieldRes.error || sRes.error) {
-        setStats(null)
-        return
-      }
+      if (pRes.error || sqRes.error || batRes.error || bowlRes.error || fieldRes.error || sRes.error) { setStats(null); return }
       const seasonNumById = {}
       for (const s of sRes.data) seasonNumById[s.id] = s.number
       setStats(computePlayerStats(pRes.data, sqRes.data, batRes.data, bowlRes.data, fieldRes.data, seasonNumById))
     }).catch(() => setStats(null)).finally(() => setStatsLoading(false))
   }, [selected])
 
-  // ── keyboard shortcuts ───────────────────────────────────────────────────────
+  // ── keyboard shortcuts ────────────────────────────────────────────────────
 
   useEffect(() => {
     function onKey(e) {
       const tag = document.activeElement?.tagName
-      if (e.key === '/' && tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA') {
+      const inInput = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
+      if (e.key === '/') {
+        if (inInput) return
         e.preventDefault()
+        if (soldOverlay) { abortOverlay(); return }
+        if (selected) clearPlayer()
         searchRef.current?.focus()
       }
       if (e.key === 'Escape') {
-        setSelected(null); setStats(null)
-        setSearchQuery(''); setSalePrice(''); setBuyerTeamId('')
-        searchRef.current?.focus()
+        if (soldOverlay) { abortOverlay(); return }
+        if (selected && highBidder) {
+          if (window.confirm(`Abandon bidding for ${selected.name}?`)) clearPlayer()
+        } else if (selected) {
+          clearPlayer()
+        }
+      }
+      if (e.key === 'Enter' && !inInput && selected && highBidder && !selling) {
+        handleSell()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [selected, highBidder, selling, soldOverlay]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── toast helper ─────────────────────────────────────────────────────────────
+  // ── utilities ─────────────────────────────────────────────────────────────
+
+  function animateBid(from, to) {
+    if (bidAnimRef.current) cancelAnimationFrame(bidAnimRef.current)
+    const start = performance.now()
+    const duration = 250
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1)
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+      const v = from + (to - from) * ease
+      setDisplayBid(v)
+      if (t < 1) bidAnimRef.current = requestAnimationFrame(tick)
+      else setDisplayBid(to)
+    }
+    bidAnimRef.current = requestAnimationFrame(tick)
+  }
 
   function toast(msg) {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(''), 3500)
   }
 
-  // ── derived state ────────────────────────────────────────────────────────────
+  function clearPlayer() {
+    setSelected(null); setStats(null)
+    setSearchQuery(''); setSearchOpen(false)
+    setCurrentBid(0); setDisplayBid(0); setHighBidder(null)
+    setShowManualBid(false); setManualBidInput(''); setManualBidTeamId('')
+    if (bidAnimRef.current) cancelAnimationFrame(bidAnimRef.current)
+  }
+
+  function selectPlayer(p) {
+    setSelected(p)
+    setSearchQuery(''); setSearchOpen(false)
+    setCurrentBid(p.base_price); setDisplayBid(p.base_price)
+    setHighBidder(null); setShowManualBid(false)
+  }
+
+  function handlePaddleClick(teamId) {
+    if (!selected) return
+    if (teamId === highBidder) { toast(`Already winning at $${currentBid}`); return }
+    const inc = BID_INCREMENT[selected.category]
+    const newBid = highBidder === null ? currentBid : currentBid + inc
+    animateBid(currentBid, newBid)
+    setCurrentBid(newBid); setHighBidder(teamId)
+    setPulsePaddle(teamId)
+    setTimeout(() => setPulsePaddle(null), 300)
+  }
+
+  function applyManualBid(e) {
+    e.preventDefault()
+    const val = parseFloat(manualBidInput)
+    if (!val || val <= 0 || !manualBidTeamId) return
+    animateBid(currentBid, val)
+    setCurrentBid(val); setHighBidder(manualBidTeamId)
+    setShowManualBid(false); setManualBidInput(''); setManualBidTeamId('')
+  }
+
+  function triggerCelebration(playerName, teamName, price, teamColor) {
+    setSoldOverlay({ playerName, teamName, price, teamColor })
+    overlayAborted.current = false
+    confetti({ particleCount: 180, spread: 90, origin: { y: 0.45 }, colors: [teamColor || '#3b82f6', '#f59e0b', '#fff', '#34d399'], disableForReducedMotion: true })
+    clearTimeout(overlayTimeoutRef.current)
+    overlayTimeoutRef.current = setTimeout(() => {
+      if (!overlayAborted.current) { setSoldOverlay(null); setTimeout(() => searchRef.current?.focus(), 50) }
+    }, 2000)
+  }
+
+  function abortOverlay() {
+    overlayAborted.current = true
+    clearTimeout(overlayTimeoutRef.current)
+    setSoldOverlay(null)
+    setTimeout(() => searchRef.current?.focus(), 50)
+  }
+
+  // ── sell / undo ────────────────────────────────────────────────────────────
+
+  async function handleSell() {
+    if (!selected || !highBidder || selling) return
+    const team = teamInfo.find(t => t.id === highBidder)
+    if (!team || team.slotsLeft <= 0 || team.remaining < currentBid) return
+    setSelling(true)
+    const tempId = `opt-${Date.now()}`
+    const salePayload = { s6_player_id: selected.id, s6_team_id: highBidder, price: currentBid }
+    setSales(prev => [...prev, { id: tempId, ...salePayload, voided: false, sold_at: new Date().toISOString() }])
+    const captured = { playerName: selected.name, teamName: team.name, price: currentBid, teamColor: team.color }
+    clearPlayer()
+    const { data, error: insertErr } = await supabase.from('auction_sales').insert(salePayload).select().single()
+    if (insertErr) {
+      setSales(prev => prev.filter(s => s.id !== tempId))
+      setSelling(false)
+      toast('Sale failed — please retry')
+      return
+    }
+    setSales(prev => prev.map(s => s.id === tempId ? data : s))
+    setLastSale({ saleId: data.id, ...captured })
+    setSelling(false)
+    triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
+  }
+
+  async function handleUndo() {
+    if (!lastSale?.saleId) return
+    const { error: updErr } = await supabase.from('auction_sales').update({ voided: true }).eq('id', lastSale.saleId)
+    if (updErr) { toast('Undo failed'); return }
+    setSales(prev => prev.map(s => s.id === lastSale.saleId ? { ...s, voided: true } : s))
+    setLastSale(null); setUndoConfirm(false)
+    toast('Sale undone')
+  }
+
+  // ── derived state ──────────────────────────────────────────────────────────
 
   const captainIds = useMemo(
     () => new Set(s6Teams.map(t => t.captain_s6_player_id).filter(Boolean)),
@@ -1003,86 +1181,48 @@ function LiveAuctionTab() {
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const pool = q ? available.filter(p => p.name.toLowerCase().includes(q)) : available
-    return pool.slice(0, 15)
+    return pool.slice(0, 12)
   }, [available, searchQuery])
 
   const teamInfo = useMemo(() => s6Teams.map(team => {
-    const teamSales = sales.filter(s => !s.voided && s.s6_team_id === team.id)
-    const spent = teamSales.reduce((sum, s) => sum + s.price, 0)
-    return { ...team, spent, remaining: team.budget_total - spent, slotsUsed: teamSales.length, slotsLeft: MAX_SLOTS - teamSales.length }
+    const ts = sales.filter(s => !s.voided && s.s6_team_id === team.id)
+    const spent = ts.reduce((sum, s) => sum + s.price, 0)
+    return { ...team, spent, remaining: team.budget_total - spent, slotsUsed: ts.length, slotsLeft: MAX_SLOTS - ts.length }
   }), [s6Teams, sales])
-
-  const priceNum = Number(salePrice) || 0
-  const noEligibleBuyer = selected && priceNum > 0 &&
-    teamInfo.every(t => t.slotsLeft <= 0 || t.remaining < priceNum)
 
   const footerStats = useMemo(() => {
     const r = {}
     for (const cat of CATEGORIES) {
-      const catPool = s6Players.filter(p => p.category === cat && !captainIds.has(p.id))
-      r[cat] = { total: catPool.length, left: catPool.filter(p => !soldIds.has(p.id)).length }
+      const pool = s6Players.filter(p => p.category === cat && !captainIds.has(p.id))
+      r[cat] = { total: pool.length, left: pool.filter(p => !soldIds.has(p.id)).length }
     }
     return r
   }, [s6Players, captainIds, soldIds])
 
   const totalSold = sales.filter(s => !s.voided).length
 
-  // ── sell ─────────────────────────────────────────────────────────────────────
+  const categoryRoster = useMemo(() => {
+    if (!selected) return []
+    return s6Players
+      .filter(p => p.category === selected.category && !captainIds.has(p.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [s6Players, selected, captainIds])
 
-  async function handleSell() {
-    if (!selected || !buyerTeamId || priceNum <= 0 || selling) return
-    const team = teamInfo.find(t => t.id === buyerTeamId)
-    if (!team || team.slotsLeft <= 0 || team.remaining < priceNum) return
+  const salesBySixPlayer = useMemo(() => {
+    const m = {}
+    for (const sale of sales) if (!sale.voided) m[sale.s6_player_id] = sale
+    return m
+  }, [sales])
 
-    setSelling(true)
-    const tempId = `opt-${Date.now()}`
-    const optimistic = { id: tempId, s6_player_id: selected.id, s6_team_id: buyerTeamId, price: priceNum, voided: false, sold_at: new Date().toISOString() }
-    setSales(prev => [...prev, optimistic])
-    setLastSale({ saleId: null, playerName: selected.name, teamName: team.name, price: priceNum })
-    const prevSelected = selected
-    setSelected(null); setStats(null); setSearchQuery(''); setSalePrice(''); setBuyerTeamId('')
-    setTimeout(() => searchRef.current?.focus(), 50)
+  const inc = selected ? BID_INCREMENT[selected.category] : 0
+  const nextBidPrice = selected ? (highBidder === null ? currentBid : currentBid + inc) : 0
+  const highBidderTeam = highBidder ? teamInfo.find(t => t.id === highBidder) : null
+  const allTeamsBroke = selected && teamInfo.length > 0 &&
+    teamInfo.every(t => t.id === highBidder || t.slotsLeft <= 0 || t.remaining < nextBidPrice)
 
-    const { data, error: insertErr } = await supabase
-      .from('auction_sales')
-      .insert({ s6_player_id: prevSelected.id, s6_team_id: buyerTeamId, price: priceNum })
-      .select().single()
+  function fmtBid(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1) }
 
-    if (insertErr) {
-      setSales(prev => prev.filter(s => s.id !== tempId))
-      setLastSale(null)
-      toast('Sale failed — please retry')
-    } else {
-      setSales(prev => prev.map(s => s.id === tempId ? data : s))
-      setLastSale(prev => prev ? { ...prev, saleId: data.id } : null)
-    }
-    setSelling(false)
-  }
-
-  async function handleUndo() {
-    if (!lastSale?.saleId) return
-    const { error: updErr } = await supabase
-      .from('auction_sales').update({ voided: true }).eq('id', lastSale.saleId)
-    if (updErr) { toast('Undo failed'); return }
-    setSales(prev => prev.map(s => s.id === lastSale.saleId ? { ...s, voided: true } : s))
-    setLastSale(null)
-  }
-
-  function selectPlayer(p) {
-    setSelected(p)
-    setSalePrice(String(p.base_price))
-    setBuyerTeamId('')
-    setSearchQuery('')
-    setSearchOpen(false)
-    setTimeout(() => priceRef.current?.focus(), 50)
-  }
-
-  const sellDisabled = !selected || !buyerTeamId || priceNum <= 0 || selling ||
-    (() => { const t = teamInfo.find(t => t.id === buyerTeamId); return t && (t.slotsLeft <= 0 || t.remaining < priceNum) })()
-
-  const onSellKey = e => { if (e.key === 'Enter') handleSell() }
-
-  // ── render ───────────────────────────────────────────────────────────────────
+  // ── render ─────────────────────────────────────────────────────────────────
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -1092,38 +1232,63 @@ function LiveAuctionTab() {
   if (error) return <p style={{ color: '#f87171' }} className="text-sm">{error}</p>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+    <div style={{ position: 'relative', minHeight: '55vh', display: 'flex', flexDirection: 'column', gap: 0 }}>
 
       {/* Toast */}
       {toastMsg && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: '#7f1d1d', color: '#fca5a5', border: '1px solid #f87171',
-          borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, zIndex: 100,
-        }}>
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1c1917', color: '#fbbf24', border: '1px solid #92400e', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, zIndex: 200, pointerEvents: 'none' }}>
           {toastMsg}
         </div>
       )}
 
-      {/* Two-panel layout */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      {/* SOLD overlay */}
+      {soldOverlay && (
+        <div onClick={abortOverlay} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 150, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}>
+          <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10, animation: 'slideUp 0.2s ease both' }}>SOLD TO</div>
+            <div style={{ fontSize: 56, fontWeight: 900, color: soldOverlay.teamColor || '#f59e0b', lineHeight: 1, marginBottom: 6, animation: 'slideUp 0.2s ease 0.06s both' }}>{soldOverlay.teamName}</div>
+            <div style={{ fontSize: 88, fontWeight: 900, color: '#fbbf24', lineHeight: 1, marginBottom: 14, fontVariantNumeric: 'tabular-nums', animation: 'slideUp 0.25s ease 0.12s both' }}>${soldOverlay.price}</div>
+            <div style={{ fontSize: 22, color: '#d1d5db', fontWeight: 500, animation: 'slideUp 0.25s ease 0.18s both' }}>{soldOverlay.playerName}</div>
+            <div style={{ marginTop: 28, color: '#6b7280', fontSize: 12 }}>tap or press / to continue</div>
+          </div>
+        </div>
+      )}
 
-        {/* ── Left panel (60%) ────────────────────────────────────────────── */}
-        <div style={{ flex: '0 0 60%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {available.length === 0 && !loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}>
-              <p style={{ color: 'var(--color-heading)', fontSize: 18, fontWeight: 600 }}>
-                🎉 All players auctioned!
-              </p>
+      {/* Undo confirm dialog */}
+      {undoConfirm && lastSale && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120 }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 28, maxWidth: 360, width: '90%', textAlign: 'center' }}>
+            <p style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 600, margin: '0 0 8px' }}>Undo sale?</p>
+            <p style={{ color: 'var(--color-text)', fontSize: 13, margin: '0 0 20px' }}>{lastSale.playerName} → {lastSale.teamName} for ${lastSale.price}</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={handleUndo} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Yes, undo</button>
+              <button onClick={() => setUndoConfirm(false)} style={{ background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Undo last sale — top right */}
+      {lastSale && !soldOverlay && (
+        <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 10 }}>
+          <button onClick={() => setUndoConfirm(true)} style={{ color: 'var(--color-text)', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}>
+            ↩ Undo last sale
+          </button>
+        </div>
+      )}
+
+      {/* ── IDLE STATE ────────────────────────────────────────────────────── */}
+      {!selected && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: '42vh', paddingTop: 48, paddingBottom: 24, gap: 20 }}>
+          {available.length === 0 ? (
+            <p style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700 }}>🎉 All players auctioned!</p>
           ) : (
             <>
-              {/* Search */}
-              <div style={{ position: 'relative' }}>
+              <div style={{ width: '100%', maxWidth: 540, position: 'relative' }}>
                 <input
                   ref={searchRef}
                   type="search"
+                  autoFocus
                   placeholder="Search player… (press / to focus)"
                   value={searchQuery}
                   onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
@@ -1133,150 +1298,193 @@ function LiveAuctionTab() {
                     if (e.key === 'Enter' && searchResults.length > 0) selectPlayer(searchResults[0])
                     if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
                   }}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                    color: 'var(--color-heading)', borderRadius: 10, padding: '12px 16px',
-                    fontSize: 16, outline: 'none',
-                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 12, padding: '16px 20px', fontSize: 20, outline: 'none' }}
                 />
                 {searchOpen && searchResults.length > 0 && (
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40,
-                    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                    borderRadius: 10, marginTop: 4, overflow: 'hidden',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                  }}>
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, marginTop: 4, overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.6)' }}>
                     {searchResults.map(p => (
-                      <div
-                        key={p.id}
-                        onMouseDown={() => { selecting.current = true }}
-                        onClick={() => { selecting.current = false; selectPlayer(p) }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }}
-                        className="hover:bg-blue-500/10"
-                      >
-                        <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                          {p.category}
-                        </span>
-                        <span style={{ color: 'var(--color-heading)', fontSize: 14, fontWeight: 500 }}>{p.name}</span>
-                        <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>{p.base_price.toLocaleString()}</span>
+                      <div key={p.id} onMouseDown={() => { selecting.current = true }} onClick={() => { selecting.current = false; selectPlayer(p) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }} className="hover:bg-blue-500/10">
+                        <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{p.category}</span>
+                        <span style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 500 }}>{p.name}</span>
+                        <span style={{ color: 'var(--color-text)', fontSize: 13, marginLeft: 'auto', flexShrink: 0 }}>${p.base_price}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
-              {/* Stat card */}
-              {selected && (
-                <PlayerStatCard player={selected} stats={stats} statsLoading={statsLoading} />
-              )}
-              {!selected && (
-                <div style={{ border: '1px dashed var(--color-border)', borderRadius: 12, padding: 32, textAlign: 'center' }}>
-                  <p style={{ color: 'var(--color-text)', fontSize: 14 }}>Search and select a player to see their stats</p>
-                </div>
-              )}
+              <p style={{ color: 'var(--color-text)', fontSize: 13, margin: 0 }}>
+                {'Players left to auction: '}
+                {CATEGORIES.map((cat, i) => {
+                  const { left, total } = footerStats[cat] ?? { left: 0, total: 0 }
+                  return (
+                    <span key={cat}>
+                      {i > 0 && <span style={{ color: 'var(--color-border)', margin: '0 6px' }}>·</span>}
+                      <span style={{ color: left === 0 ? '#34d399' : CAT_PALETTE[cat].label, fontWeight: 600 }}>{cat}: {left}/{total}</span>
+                    </span>
+                  )
+                })}
+                <span style={{ color: 'var(--color-border)', margin: '0 6px' }}>·</span>
+                <span>{totalSold} sold</span>
+              </p>
             </>
           )}
         </div>
+      )}
 
-        {/* ── Right panel (40%) ───────────────────────────────────────────── */}
-        <div style={{ flex: '0 0 40%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ── BIDDING STATE ─────────────────────────────────────────────────── */}
+      {selected && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
 
-            {/* Sale Price */}
-            <div>
-              <label style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
-                Sale Price
-              </label>
-              <input
-                ref={priceRef}
-                type="number"
-                value={salePrice}
-                onChange={e => setSalePrice(e.target.value)}
-                onKeyDown={onSellKey}
-                placeholder="Enter price…"
-                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '10px 12px', fontSize: 18, fontWeight: 700, outline: 'none' }}
-              />
-            </div>
-
-            {/* Buyer Team */}
-            <div>
-              <label style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>
-                Buyer Team
-              </label>
-              <select
-                value={buyerTeamId}
-                onChange={e => setBuyerTeamId(e.target.value)}
-                onKeyDown={onSellKey}
-                style={{ width: '100%', background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none' }}
-              >
-                <option value="">Select team…</option>
-                {teamInfo.map(t => {
-                  const ineligible = t.slotsLeft <= 0 || t.remaining < priceNum
-                  return (
-                    <option key={t.id} value={t.id} disabled={ineligible}>
-                      {t.name} · {t.slotsLeft}/{MAX_SLOTS} slots · {t.remaining.toLocaleString()} left
-                    </option>
-                  )
-                })}
-              </select>
-              {noEligibleBuyer && (
-                <p style={{ color: '#f59e0b', fontSize: 12, marginTop: 6 }}>
-                  No team can buy this player at {priceNum.toLocaleString()}
-                </p>
-              )}
-            </div>
-
-            {/* Sell button */}
-            <button
-              onClick={handleSell}
-              disabled={sellDisabled}
-              style={{
-                background: sellDisabled ? 'var(--color-border)' : '#22c55e',
-                color: sellDisabled ? 'var(--color-text)' : '#fff',
-                border: 'none', borderRadius: 10, padding: '14px 0',
-                fontSize: 16, fontWeight: 700, cursor: sellDisabled ? 'default' : 'pointer',
-                transition: 'background 0.15s',
+          {/* Compact search at top */}
+          <div style={{ position: 'relative', maxWidth: 380 }}>
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="Search player…"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => { if (!selecting.current) setSearchOpen(false) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && searchResults.length > 0) selectPlayer(searchResults[0])
+                if (e.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
               }}
-            >
-              {selling ? 'Selling…' : 'Sell'}
-            </button>
-
-            {/* Last sale */}
-            {lastSale && (
-              <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ color: '#86efac', fontSize: 12 }}>
-                  {lastSale.playerName} → {lastSale.teamName} · {lastSale.price.toLocaleString()}
-                </span>
-                <button
-                  onClick={handleUndo}
-                  disabled={!lastSale.saleId}
-                  style={{ color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 6, padding: '2px 10px', fontSize: 12, cursor: lastSale.saleId ? 'pointer' : 'default', opacity: lastSale.saleId ? 1 : 0.4 }}
-                >
-                  Undo
-                </button>
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 8, padding: '9px 14px', fontSize: 14, outline: 'none' }}
+            />
+            {searchOpen && searchResults.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, marginTop: 4, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                {searchResults.map(p => (
+                  <div key={p.id} onMouseDown={() => { selecting.current = true }} onClick={() => { selecting.current = false; selectPlayer(p) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }} className="hover:bg-blue-500/10">
+                    <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{p.category}</span>
+                    <span style={{ color: 'var(--color-heading)', fontSize: 13 }}>{p.name}</span>
+                    <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>${p.base_price}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* ── Footer strip ────────────────────────────────────────────────────── */}
-      <div style={{ marginTop: 20, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 16px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
-        <span style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>Players left</span>
-        {CATEGORIES.map(cat => {
-          const { left, total } = footerStats[cat] ?? { left: 0, total: 0 }
-          const pal = CAT_PALETTE[cat]
+          {/* Stat card + category roster */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            <div style={{ flex: '0 0 60%', minWidth: 0, animation: 'slideUp 0.2s ease both' }}>
+              <PlayerStatCard player={selected} stats={stats} statsLoading={statsLoading} />
+            </div>
+            <div style={{ flex: '0 0 40%', minWidth: 0, animation: 'slideUp 0.2s ease 0.06s both' }}>
+              <CategoryRosterPanel category={selected.category} players={categoryRoster} activeId={selected.id} soldIds={soldIds} salesMap={salesBySixPlayer} teamInfo={teamInfo} />
+            </div>
+          </div>
+
+          {/* Current bid strip */}
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '18px 24px', animation: 'slideUp 0.2s ease 0.1s both' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap', minHeight: 72 }}>
+              {highBidder ? (
+                <>
+                  <div>
+                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Current Bid</div>
+                    <div style={{ color: 'var(--color-heading)', fontSize: 68, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>${fmtBid(displayBid)}</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>Held by</div>
+                    <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: '#fff', borderRadius: 20, padding: '5px 18px', fontSize: 18, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both' }}>
+                      {highBidderTeam?.name}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ color: 'var(--color-text)', fontSize: 20 }}>Awaiting first bid</span>
+                  <span style={{ color: 'var(--color-border)' }}>·</span>
+                  <span style={{ color: 'var(--color-heading)', fontSize: 20, fontWeight: 700 }}>Base ${selected.base_price}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Manual bid */}
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button onClick={() => setShowManualBid(v => !v)} style={{ color: 'var(--color-text)', background: 'transparent', border: 'none', padding: 0, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                {showManualBid ? 'close' : 'Set bid manually'}
+              </button>
+              {showManualBid && (
+                <form onSubmit={applyManualBid} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ color: 'var(--color-text)', fontSize: 12 }}>Set bid to:</span>
+                  <input type="number" value={manualBidInput} onChange={e => setManualBidInput(e.target.value)} step="0.5" placeholder="price" style={{ width: 70, background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }} />
+                  <span style={{ color: 'var(--color-text)', fontSize: 12 }}>for:</span>
+                  <select value={manualBidTeamId} onChange={e => setManualBidTeamId(e.target.value)} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 12, outline: 'none' }}>
+                    <option value="">Team…</option>
+                    {teamInfo.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <button type="submit" style={{ background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Set</button>
+                </form>
+              )}
+            </div>
+
+            {highBidder && allTeamsBroke && (
+              <p style={{ color: '#34d399', fontSize: 12, marginTop: 8 }}>No other team can outbid — ready to sell to {highBidderTeam?.name}.</p>
+            )}
+            {!highBidder && allTeamsBroke && (
+              <p style={{ color: '#f59e0b', fontSize: 12, marginTop: 8 }}>No team can bid at this base price. Adjust manually or pass.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── PADDLES ROW (always rendered) ─────────────────────────────────── */}
+      <div style={{ marginTop: selected ? 16 : 28, display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+        {teamInfo.map(team => {
+          const isHighBidder = team.id === highBidder
+          const canAffordNext = team.remaining >= nextBidPrice
+          const hasSlots = team.slotsLeft > 0
+          const active = selected && !isHighBidder
+          const disabled = !selected || !hasSlots || !canAffordNext
+          const isPulsing = pulsePaddle === team.id
           return (
-            <span key={cat} style={{ color: left === 0 ? '#34d399' : pal.label, fontSize: 13, fontWeight: 600 }}>
-              {cat}: {left}/{total}
-            </span>
+            <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: selected ? 'var(--color-text)' : 'var(--color-border)', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                ${team.spent} / ${team.budget_total}
+              </span>
+              <button
+                onClick={() => handlePaddleClick(team.id)}
+                disabled={disabled && !isHighBidder}
+                title={!hasSlots ? 'No slots left' : !canAffordNext && selected ? 'Out of budget' : undefined}
+                style={{
+                  width: '100%',
+                  background: !selected ? 'var(--color-surface)' : isHighBidder ? team.color : disabled ? 'rgba(255,255,255,0.04)' : team.color,
+                  color: !selected ? 'var(--color-border)' : isHighBidder || !disabled ? '#fff' : 'var(--color-text)',
+                  border: isHighBidder ? `2px solid ${team.color}` : `2px solid ${!selected ? 'var(--color-border)' : disabled ? 'rgba(255,255,255,0.08)' : team.color}`,
+                  borderRadius: 12, padding: '18px 8px', fontSize: 15, fontWeight: 700,
+                  cursor: (!selected || (disabled && !isHighBidder)) ? 'default' : 'pointer',
+                  opacity: !selected ? 0.4 : (disabled && !isHighBidder) ? 0.35 : 1,
+                  transform: isPulsing ? 'scale(1.06)' : 'scale(1)',
+                  transition: 'transform 0.15s, opacity 0.2s, background 0.15s, border-color 0.15s',
+                  boxShadow: isHighBidder ? `0 0 28px ${team.color}55` : 'none',
+                }}
+              >
+                {team.name}
+              </button>
+            </div>
           )
         })}
-        <span style={{ color: 'var(--color-border)', fontSize: 12 }}>·</span>
-        <span style={{ color: 'var(--color-text)', fontSize: 12 }}>
-          {totalSold} sold
-        </span>
+        {/* SOLD button */}
+        <div style={{ flex: '0 0 110px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: 'transparent' }}>·</span>
+          <button
+            onClick={handleSell}
+            disabled={!selected || !highBidder || selling}
+            style={{
+              width: '100%',
+              background: (!selected || !highBidder) ? 'rgba(255,255,255,0.04)' : selling ? '#d97706' : '#f59e0b',
+              color: (!selected || !highBidder) ? 'var(--color-text)' : '#000',
+              border: `2px solid ${(!selected || !highBidder) ? 'rgba(255,255,255,0.08)' : '#f59e0b'}`,
+              borderRadius: 12, padding: '18px 8px', fontSize: 17, fontWeight: 900,
+              cursor: (!selected || !highBidder || selling) ? 'default' : 'pointer',
+              opacity: (!selected || !highBidder) ? 0.35 : 1,
+              transition: 'background 0.15s, opacity 0.2s',
+              letterSpacing: '0.05em',
+            }}
+          >
+            {selling ? '…' : 'SOLD'}
+          </button>
+        </div>
       </div>
     </div>
   )
