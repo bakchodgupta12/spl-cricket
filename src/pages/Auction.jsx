@@ -1375,71 +1375,73 @@ function LiveAuctionTab() {
           </div>
 
           {/* Current bid strip */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '18px 24px', animation: 'slideUp 0.2s ease 0.1s both' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap', minHeight: 72 }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 18px', animation: 'slideUp 0.2s ease 0.1s both' }}>
+            {/* Main row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               {highBidder ? (
                 <>
                   <div>
-                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 2 }}>Current Bid</div>
-                    <div style={{ color: 'var(--color-heading)', fontSize: 68, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>${fmtBid(displayBid)}</div>
+                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Current Bid</div>
+                    <div style={{ color: 'var(--color-heading)', fontSize: 52, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>${fmtBid(displayBid)}</div>
                   </div>
-                  <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>Held by</div>
-                    <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: '#fff', borderRadius: 20, padding: '5px 18px', fontSize: 18, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both' }}>
+                  <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Held by</div>
+                    <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: '#fff', borderRadius: 20, padding: '4px 16px', fontSize: 16, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both' }}>
                       {highBidderTeam?.name}
                     </span>
                   </div>
                 </>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                  <span style={{ color: 'var(--color-text)', fontSize: 20 }}>Awaiting first bid</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ color: 'var(--color-text)', fontSize: 18 }}>Awaiting first bid</span>
                   <span style={{ color: 'var(--color-border)' }}>·</span>
-                  <span style={{ color: 'var(--color-heading)', fontSize: 20, fontWeight: 700 }}>Base ${selected.base_price}</span>
+                  <span style={{ color: 'var(--color-heading)', fontSize: 18, fontWeight: 700 }}>Base ${selected.base_price}</span>
                 </div>
               )}
+              <button
+                onClick={() => setShowManualBid(v => !v)}
+                style={{ marginLeft: highBidder ? 12 : 'auto', color: '#6b7280', background: 'transparent', border: 'none', padding: '2px 6px', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0, whiteSpace: 'nowrap' }}
+              >
+                {showManualBid ? 'close' : 'set manually'}
+              </button>
             </div>
 
-            {/* Manual bid */}
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <button onClick={() => setShowManualBid(v => !v)} style={{ color: 'var(--color-text)', background: 'transparent', border: 'none', padding: 0, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
-                {showManualBid ? 'close' : 'Set bid manually'}
-              </button>
-              {showManualBid && (
-                <form onSubmit={applyManualBid} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ color: 'var(--color-text)', fontSize: 12 }}>Set bid to:</span>
-                  <input type="number" value={manualBidInput} onChange={e => setManualBidInput(e.target.value)} step="0.5" placeholder="price" style={{ width: 70, background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }} />
-                  <span style={{ color: 'var(--color-text)', fontSize: 12 }}>for:</span>
-                  <select value={manualBidTeamId} onChange={e => setManualBidTeamId(e.target.value)} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 12, outline: 'none' }}>
-                    <option value="">Team…</option>
-                    {teamInfo.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                  <button type="submit" style={{ background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Set</button>
-                </form>
-              )}
-            </div>
+            {/* Manual bid form */}
+            {showManualBid && (
+              <form onSubmit={applyManualBid} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
+                <span style={{ color: 'var(--color-text)', fontSize: 12 }}>Set bid to:</span>
+                <input type="number" value={manualBidInput} onChange={e => setManualBidInput(e.target.value)} step="0.5" placeholder="price" style={{ width: 70, background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 13, outline: 'none' }} />
+                <span style={{ color: 'var(--color-text)', fontSize: 12 }}>for:</span>
+                <select value={manualBidTeamId} onChange={e => setManualBidTeamId(e.target.value)} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-heading)', borderRadius: 6, padding: '4px 8px', fontSize: 12, outline: 'none' }}>
+                  <option value="">Team…</option>
+                  {teamInfo.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button type="submit" style={{ background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Set</button>
+              </form>
+            )}
 
             {highBidder && allTeamsBroke && (
-              <p style={{ color: '#34d399', fontSize: 12, marginTop: 8 }}>No other team can outbid — ready to sell to {highBidderTeam?.name}.</p>
+              <p style={{ color: '#34d399', fontSize: 11, margin: '6px 0 0' }}>No other team can outbid — ready to sell to {highBidderTeam?.name}.</p>
             )}
             {!highBidder && allTeamsBroke && (
-              <p style={{ color: '#f59e0b', fontSize: 12, marginTop: 8 }}>No team can bid at this base price. Adjust manually or pass.</p>
+              <p style={{ color: '#f59e0b', fontSize: 11, margin: '6px 0 0' }}>No team can bid at this base price. Adjust manually or pass.</p>
             )}
           </div>
         </div>
       )}
 
-      {/* ── PADDLES ROW (always rendered) ─────────────────────────────────── */}
-      <div style={{ marginTop: selected ? 16 : 28, display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+      {/* ── PADDLES + SOLD ROW (always rendered) ────────────────────────── */}
+      <div style={{ marginTop: selected ? 14 : 28, display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+        {/* Team paddles */}
         {teamInfo.map(team => {
           const isHighBidder = team.id === highBidder
           const canAffordNext = team.remaining >= nextBidPrice
           const hasSlots = team.slotsLeft > 0
-          const active = selected && !isHighBidder
           const disabled = !selected || !hasSlots || !canAffordNext
           const isPulsing = pulsePaddle === team.id
           return (
-            <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <span style={{ color: selected ? 'var(--color-text)' : 'var(--color-border)', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <span style={{ color: selected ? (isHighBidder ? 'var(--color-heading)' : 'var(--color-text)') : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 600, fontVariantNumeric: 'tabular-nums' }}>
                 ${team.spent} / ${team.budget_total}
               </span>
               <button
@@ -1449,14 +1451,16 @@ function LiveAuctionTab() {
                 style={{
                   width: '100%',
                   background: !selected ? 'var(--color-surface)' : isHighBidder ? team.color : disabled ? 'rgba(255,255,255,0.04)' : team.color,
-                  color: !selected ? 'var(--color-border)' : isHighBidder || !disabled ? '#fff' : 'var(--color-text)',
-                  border: isHighBidder ? `2px solid ${team.color}` : `2px solid ${!selected ? 'var(--color-border)' : disabled ? 'rgba(255,255,255,0.08)' : team.color}`,
-                  borderRadius: 12, padding: '18px 8px', fontSize: 15, fontWeight: 700,
+                  color: !selected ? 'var(--color-border)' : (isHighBidder || !disabled) ? '#fff' : 'var(--color-text)',
+                  border: isHighBidder
+                    ? '2px solid rgba(255,255,255,0.85)'
+                    : `2px solid ${!selected ? 'var(--color-border)' : disabled ? 'rgba(255,255,255,0.08)' : team.color}`,
+                  borderRadius: 12, padding: '13px 8px', fontSize: 14, fontWeight: 700,
                   cursor: (!selected || (disabled && !isHighBidder)) ? 'default' : 'pointer',
-                  opacity: !selected ? 0.4 : (disabled && !isHighBidder) ? 0.35 : 1,
+                  opacity: !selected ? 0.4 : (disabled && !isHighBidder) ? 0.3 : 1,
                   transform: isPulsing ? 'scale(1.06)' : 'scale(1)',
                   transition: 'transform 0.15s, opacity 0.2s, background 0.15s, border-color 0.15s',
-                  boxShadow: isHighBidder ? `0 0 28px ${team.color}55` : 'none',
+                  boxShadow: isHighBidder ? `0 0 22px ${team.color}66` : 'none',
                 }}
               >
                 {team.name}
@@ -1464,27 +1468,36 @@ function LiveAuctionTab() {
             </div>
           )
         })}
-        {/* SOLD button */}
-        <div style={{ flex: '0 0 110px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'transparent' }}>·</span>
-          <button
-            onClick={handleSell}
-            disabled={!selected || !highBidder || selling}
-            style={{
-              width: '100%',
-              background: (!selected || !highBidder) ? 'rgba(255,255,255,0.04)' : selling ? '#d97706' : '#f59e0b',
-              color: (!selected || !highBidder) ? 'var(--color-text)' : '#000',
-              border: `2px solid ${(!selected || !highBidder) ? 'rgba(255,255,255,0.08)' : '#f59e0b'}`,
-              borderRadius: 12, padding: '18px 8px', fontSize: 17, fontWeight: 900,
-              cursor: (!selected || !highBidder || selling) ? 'default' : 'pointer',
-              opacity: (!selected || !highBidder) ? 0.35 : 1,
-              transition: 'background 0.15s, opacity 0.2s',
-              letterSpacing: '0.05em',
-            }}
-          >
-            {selling ? '…' : 'SOLD'}
-          </button>
-        </div>
+
+        {/* SOLD button — visually distinct closer */}
+        {(() => {
+          const soldActive = !!(selected && highBidder && !selling)
+          return (
+            <div style={{ flexShrink: 0, width: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <span style={{ fontSize: 11, color: 'transparent', userSelect: 'none' }}>·</span>
+              <button
+                onClick={handleSell}
+                disabled={!soldActive}
+                style={{
+                  width: '100%',
+                  background: soldActive ? '#F2C033' : 'rgba(255,255,255,0.04)',
+                  color: soldActive ? '#1a1200' : '#6b7280',
+                  border: `2px solid ${soldActive ? '#F2C033' : 'rgba(255,255,255,0.08)'}`,
+                  borderRadius: 30,
+                  padding: '18px 10px',
+                  fontSize: 18, fontWeight: 900,
+                  cursor: soldActive ? 'pointer' : 'default',
+                  opacity: soldActive ? 1 : 0.35,
+                  transition: 'background 0.15s, opacity 0.2s',
+                  letterSpacing: '0.04em',
+                  animation: soldActive ? 'soldPulse 1.5s ease-in-out infinite' : 'none',
+                }}
+              >
+                {selling ? '…' : '🔨 SOLD'}
+              </button>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
