@@ -751,7 +751,7 @@ function CategoriesTab() {
             <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
               Superball Premier League — Season 6 Players List
             </h1>
-            <p style={{ color: MUTED, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
+            <p style={{ color: MUTED, fontSize: 13, marginTop: 14, marginBottom: 0 }}>
               Auction date: 2nd May, 9 PM (Bangkok time)
             </p>
           </div>
@@ -760,42 +760,42 @@ function CategoriesTab() {
         {/* Divider */}
         <div style={{ height: 1, background: BORDER }} />
 
-        {/* Captains strip */}
-        {captainCards.length > 0 && (
-          <div style={{ display: 'flex', gap: 10 }}>
-            {captainCards.map(card => {
-              const fg = captainTextColor(card.teamColor)
-              return (
-                <div
-                  key={card.teamName}
-                  style={{
-                    flex: 1, minWidth: 0,
-                    background: card.teamColor,
-                    border: '2px solid rgba(255,255,255,0.35)',
-                    borderRadius: 8,
-                    padding: '10px 12px',
-                    position: 'relative',
-                  }}
-                >
-                  <span style={{ position: 'absolute', top: 7, right: 9, fontSize: 13, lineHeight: 1 }}>👑</span>
-                  <div style={{ color: fg, fontSize: 14, fontWeight: 700, paddingRight: 22, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                    {card.captainName}
+        {/* Captains strip + budget context */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {captainCards.length > 0 && (
+            <div style={{ display: 'flex', gap: 10 }}>
+              {captainCards.map(card => {
+                const fg = captainTextColor(card.teamColor)
+                return (
+                  <div
+                    key={card.teamName}
+                    style={{
+                      flex: 1, minWidth: 0,
+                      background: card.teamColor,
+                      border: '2px solid rgba(255,255,255,0.35)',
+                      borderRadius: 8,
+                      padding: '10px 12px',
+                      position: 'relative',
+                    }}
+                  >
+                    <span style={{ position: 'absolute', top: 7, right: 9, fontSize: 13, lineHeight: 1 }}>👑</span>
+                    <div style={{ color: fg, fontSize: 14, fontWeight: 700, paddingRight: 22, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                      {card.captainName}
+                    </div>
+                    <div style={{ color: fg, fontSize: 11, opacity: 0.72, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {card.teamName}
+                    </div>
                   </div>
-                  <div style={{ color: fg, fontSize: 11, opacity: 0.72, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {card.teamName}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Budget context */}
-        {maxBudget && (
-          <p style={{ color: MUTED, fontSize: 11, textAlign: 'right', margin: 0 }}>
-            Each team has {maxBudget} to spend.
-          </p>
-        )}
+                )
+              })}
+            </div>
+          )}
+          {maxBudget && (
+            <p style={{ color: MUTED, fontSize: 11, textAlign: 'left', margin: 0 }}>
+              Total auction budget: <span style={{ color: '#9ca3af', fontWeight: 600 }}>{maxBudget}</span> per team
+            </p>
+          )}
+        </div>
 
         {/* Divider */}
         <div style={{ height: 1, background: BORDER }} />
