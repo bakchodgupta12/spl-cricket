@@ -131,13 +131,20 @@ export default function Landing() {
         )}
 
         {/* CTA */}
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-3">
           <Link
             to="/players"
             style={{ background: 'var(--color-accent)', color: '#fff' }}
             className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-90 transition-opacity"
           >
             Browse Players
+          </Link>
+          <Link
+            to="/auction"
+            style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+            className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-80 transition-opacity"
+          >
+            Auction Mode
           </Link>
         </div>
 
