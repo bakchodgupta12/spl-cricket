@@ -568,7 +568,19 @@ const CAT_PALETTE = {
   D: { bg: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.35)',  text: '#c4b5fd',  label: '#ddd6fe' },
 }
 
-function CategoryColumn({ category, players, captainMap }) {
+// Returns '#fff' or '#111' based on background hex luminance
+function captainTextColor(hex) {
+  try {
+    const r = parseInt(hex.slice(1, 3), 16) / 255
+    const g = parseInt(hex.slice(3, 5), 16) / 255
+    const b = parseInt(hex.slice(5, 7), 16) / 255
+    const lin = c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    return lum > 0.35 ? '#111111' : '#ffffff'
+  } catch { return '#ffffff' }
+}
+
+function CategoryColumn({ category, players }) {
   const pal = CAT_PALETTE[category]
   return (
     <div style={{
@@ -596,23 +608,14 @@ function CategoryColumn({ category, players, captainMap }) {
           <p style={{ color: MUTED, fontSize: 12, fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
             No players assigned
           </p>
-        ) : players.map((p, i) => {
-          const teamName = captainMap.get(p.id)
-          return (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, height: 26, overflow: 'hidden' }}>
-              <span style={{ color: MUTED, fontSize: 11, minWidth: 20, textAlign: 'right', flexShrink: 0 }}>
-                {i + 1}.
-              </span>
-              <span style={{ color: HEADING, fontSize: 13, whiteSpace: 'nowrap' }}>{p.name}</span>
-              {teamName && <span style={{ fontSize: 12, flexShrink: 0, lineHeight: 1 }}>👑</span>}
-              {teamName && (
-                <span style={{ color: pal.text, fontSize: 10, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  {teamName}
-                </span>
-              )}
-            </div>
-          )
-        })}
+        ) : players.map((p, i) => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, height: 26, overflow: 'hidden' }}>
+            <span style={{ color: MUTED, fontSize: 11, minWidth: 20, textAlign: 'right', flexShrink: 0 }}>
+              {i + 1}.
+            </span>
+            <span style={{ color: HEADING, fontSize: 13, whiteSpace: 'nowrap' }}>{p.name}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -651,6 +654,14 @@ function CategoriesTab() {
     for (const t of s6Teams) if (t.captain_s6_player_id) m.set(t.captain_s6_player_id, t.name)
     return m
   }, [s6Teams])
+
+  const captainCards = useMemo(() => s6Teams
+    .filter(t => t.captain_s6_player_id)
+    .map(t => {
+      const captain = s6Players.find(p => p.id === t.captain_s6_player_id)
+      return { teamName: t.name, teamColor: t.color, captainName: captain?.name ?? '—' }
+    }),
+  [s6Teams, s6Players])
 
   const byCategory = useMemo(() => {
     const m = { A: [], B: [], C: [], D: [] }
@@ -720,10 +731,42 @@ function CategoriesTab() {
               Superball Premier League — Season 6 Players List
             </h1>
             <p style={{ color: MUTED, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
-              Auction date: 2 May, 9 PM (Bangkok time)
+              Auction date: 2nd May, 9 PM (Bangkok time)
             </p>
           </div>
         </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: BORDER }} />
+
+        {/* Captains strip */}
+        {captainCards.length > 0 && (
+          <div style={{ display: 'flex', gap: 10 }}>
+            {captainCards.map(card => {
+              const fg = captainTextColor(card.teamColor)
+              return (
+                <div
+                  key={card.teamName}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    background: card.teamColor,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    position: 'relative',
+                  }}
+                >
+                  <span style={{ position: 'absolute', top: 7, right: 9, fontSize: 13, lineHeight: 1 }}>👑</span>
+                  <div style={{ color: fg, fontSize: 14, fontWeight: 700, paddingRight: 22, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                    {card.captainName}
+                  </div>
+                  <div style={{ color: fg, fontSize: 11, opacity: 0.72, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {card.teamName}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Divider */}
         <div style={{ height: 1, background: BORDER }} />
@@ -735,7 +778,6 @@ function CategoriesTab() {
               key={cat}
               category={cat}
               players={byCategory[cat]}
-              captainMap={captainMap}
             />
           ))}
         </div>
