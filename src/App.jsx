@@ -4,6 +4,7 @@ import Landing from './pages/Landing'
 import Players from './pages/Players'
 import PlayerProfile from './pages/PlayerProfile'
 import SeasonView from './pages/SeasonView'
+import Auction from './pages/Auction'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/players" element={<Players />} />
           <Route path="/players/:id" element={<PlayerProfile />} />
           <Route path="/seasons/:n" element={<SeasonView />} />
+          <Route path="/auction" element={<Auction />} />
         </Routes>
       </div>
     </div>
