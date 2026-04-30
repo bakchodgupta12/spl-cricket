@@ -1063,6 +1063,10 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   // ── toast ─────────────────────────────────────────────────────────────────
   const [toastMsg, setToastMsg] = useState('')
 
+  // ── reset auction (dry-run) ───────────────────────────────────────────────
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetting, setResetting] = useState(false)
+
   const searchRef = useRef(null)
 
   // ── initial load ──────────────────────────────────────────────────────────
@@ -1330,6 +1334,20 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     if (updErr) { toast('Undo failed'); return }
     setSales(prev => prev.map(s => s.id === saleId ? { ...s, voided: true } : s))
     toast('Undone')
+  }
+
+  async function handleReset() {
+    const activeSales = sales.filter(s => !s.voided)
+    if (!activeSales.length) { setShowResetConfirm(false); return }
+    setResetting(true)
+    const ids = activeSales.map(s => s.id)
+    const { error: updErr } = await supabase.from('auction_sales').update({ voided: true }).in('id', ids)
+    if (updErr) { toast('Reset failed'); setResetting(false); return }
+    setSales(prev => prev.map(s => ({ ...s, voided: true })))
+    setShowResetConfirm(false)
+    setResetting(false)
+    setSelected(null); setCurrentBid(0); setHighBidder(null)
+    toast('Auction reset — all sales voided')
   }
 
   async function handleAutoAlloc() {
@@ -1612,7 +1630,41 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
             ↶ Undo last sale
           </button>
         )}
+        {/* Reset auction — dry-run only */}
+        <button
+          onClick={() => setShowResetConfirm(true)}
+          style={{ color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+        >
+          ↺ Reset auction
+        </button>
       </div>
+
+      {/* Reset confirm modal */}
+      {showResetConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400 }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid rgba(248,113,113,0.5)', borderRadius: 14, padding: 28, maxWidth: 380, width: '90%', textAlign: 'center' }}>
+            <p style={{ color: '#f87171', fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>Reset the entire auction?</p>
+            <p style={{ color: 'var(--color-text)', fontSize: 13, margin: '0 0 22px', lineHeight: 1.5 }}>
+              This will void all sales and clear all team rosters.<br />This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={handleReset}
+                disabled={resetting}
+                style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 22px', fontSize: 13, fontWeight: 700, cursor: resetting ? 'default' : 'pointer', opacity: resetting ? 0.6 : 1 }}
+              >
+                {resetting ? 'Resetting…' : 'Yes, reset'}
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                style={{ background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Manual override modal */}
       {showOverride && (
