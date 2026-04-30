@@ -1378,35 +1378,47 @@ function LiveAuctionTab() {
 
   // Shape X = 1A·3B·3C·1D  Shape Y = 2A·2B·2C·2D  (captain pre-counts as 1B)
   const CAT_MAX = {
-    null: { A: 2, B: 3, C: 3, D: 2 }, // max across both shapes
+    null: { A: 2, B: 3, C: 3, D: 2 }, // max when shape still undecided
     X:    { A: 1, B: 3, C: 3, D: 1 },
     Y:    { A: 2, B: 2, C: 2, D: 2 },
   }
   const MAX_PURCHASES = 7 // captain fills 1 of 8 slots
 
-  const teamInfo = useMemo(() => s6Teams.map(team => {
-    const ts = sales.filter(s => !s.voided && s.s6_team_id === team.id)
-    const spent = ts.reduce((sum, s) => sum + s.price, 0)
-    // Category counts — captain pre-fills B=1
-    const catCounts = { A: 0, B: team.captain_s6_player_id ? 1 : 0, C: 0, D: 0 }
-    for (const sale of ts) {
-      const p = s6Players.find(px => px.id === sale.s6_player_id)
-      if (p) catCounts[p.category] = (catCounts[p.category] || 0) + 1
-    }
-    // Shape lock: Y when 2A or 2D bought, X when 3B or 3C (cap+2) bought
-    let lockedShape = null
-    if (catCounts.A >= 2 || catCounts.D >= 2) lockedShape = 'Y'
-    else if (catCounts.B >= 3 || catCounts.C >= 3) lockedShape = 'X'
-    const slotsUsed = ts.length
-    const slotsLeft = MAX_PURCHASES - ts.length
-    return { ...team, spent, remaining: team.budget_total - spent, slotsUsed, slotsLeft, catCounts, lockedShape }
-  }), [s6Teams, sales, s6Players])
+  const teamInfo = useMemo(() => {
+    // Pass 1 — per-team base info and own lock state
+    const base = s6Teams.map(team => {
+      const ts = sales.filter(s => !s.voided && s.s6_team_id === team.id)
+      const spent = ts.reduce((sum, s) => sum + s.price, 0)
+      const catCounts = { A: 0, B: team.captain_s6_player_id ? 1 : 0, C: 0, D: 0 }
+      for (const sale of ts) {
+        const p = s6Players.find(px => px.id === sale.s6_player_id)
+        if (p) catCounts[p.category] = (catCounts[p.category] || 0) + 1
+      }
+      let lockedShape = null
+      if (catCounts.A >= 2 || catCounts.D >= 2) lockedShape = 'Y'
+      else if (catCounts.B >= 3 || catCounts.C >= 3) lockedShape = 'X'
+      return { ...team, spent, remaining: team.budget_total - spent,
+        slotsUsed: ts.length, slotsLeft: MAX_PURCHASES - ts.length,
+        catCounts, lockedShape }
+    })
+    // Pass 2 — global enforcement: 3 Ys → remaining must be X; 2 Xs → remaining must be Y
+    const lockedY = base.filter(t => t.lockedShape === 'Y').length
+    const lockedX = base.filter(t => t.lockedShape === 'X').length
+    return base.map(t => {
+      let forcedShape = t.lockedShape
+      if (!forcedShape) {
+        if (lockedY >= 3) forcedShape = 'X'
+        else if (lockedX >= 2) forcedShape = 'Y'
+      }
+      return { ...t, forcedShape }
+    })
+  }, [s6Teams, sales, s6Players])
 
   // Is a specific team eligible to bid for a player in cat?
   function teamCatEligible(team, cat) {
     if (team.id === forceAllowTeamId) return true
     if (team.slotsLeft <= 0) return false
-    const max = (CAT_MAX[team.lockedShape] ?? CAT_MAX[null])[cat]
+    const max = (CAT_MAX[team.forcedShape] ?? CAT_MAX[null])[cat]
     return team.catCounts[cat] < max
   }
 
@@ -1455,6 +1467,31 @@ function LiveAuctionTab() {
 
   const autoAllocMode = selected && eligibleTeams.length === 1
   const autoAllocTeam = autoAllocMode ? eligibleTeams[0] : null
+
+  // ── shape-lock console logging (leave in until dry run complete) ───────────
+  useEffect(() => {
+    if (!selected || !teamInfo.length) return
+    const lockedY = teamInfo.filter(t => t.lockedShape === 'Y').length
+    const lockedX = teamInfo.filter(t => t.lockedShape === 'X').length
+    const unlocked = teamInfo.filter(t => !t.lockedShape).length
+    console.log(`[shape-lock] Player loaded: ${selected.name} (Cat ${selected.category})`)
+    console.log(`[shape-lock] Global: lockedY=${lockedY}, lockedX=${lockedX}, unlocked=${unlocked}`)
+    console.log('[shape-lock] Per-team eligibility:')
+    teamInfo.forEach(t => {
+      const eligible = teamCatEligible(t, selected.category)
+      console.log(
+        `  ${t.name.padEnd(28)} own=${t.lockedShape ?? 'none '} forced=${t.forcedShape ?? 'none '}` +
+        ` ${selected.category}=${t.catCounts[selected.category]}` +
+        ` → ${selected.category} paddle ${eligible ? 'ENABLED ✓' : 'DISABLED ✗'}`
+      )
+    })
+    const eligCount = eligibleTeams.length
+    console.log(`[shape-lock] Eligible in Cat ${selected.category}: ${eligCount}`)
+    if (eligCount === 1) console.log(`[shape-lock] → AUTO-ALLOCATE to ${eligibleTeams[0]?.name}`)
+    else if (eligCount === 0) console.log('[shape-lock] → NO ELIGIBLE TEAM — skip this player')
+    else console.log('[shape-lock] → normal bidding')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, teamInfo])
 
   // Auto-alloc price: average of sold prices in this category, rounded UP to increment, min base_price
   const autoAllocPrice = useMemo(() => {
