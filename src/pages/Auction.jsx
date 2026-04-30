@@ -902,19 +902,13 @@ function PlayerStatCard({ player, stats, statsLoading }) {
         <h2 style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{player.name}</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           <span style={{ background: pal.bg, color: pal.label, border: `1px solid ${pal.border}`, borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
-            Cat {player.category}
+            Category {player.category}
           </span>
-          <span style={{ background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 20, padding: '2px 10px', fontSize: 12 }}>
-            Base {player.base_price.toLocaleString()}
-          </span>
-          <span style={{
-            background: player.is_debut ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
-            color: player.is_debut ? '#6ee7b7' : '#93c5fd',
-            border: `1px solid ${player.is_debut ? 'rgba(16,185,129,0.35)' : 'rgba(59,130,246,0.35)'}`,
-            borderRadius: 20, padding: '2px 10px', fontSize: 12,
-          }}>
-            {player.is_debut ? 'Debut' : 'Returning'}
-          </span>
+          {player.is_debut && (
+            <span style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.45)', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
+              Debut
+            </span>
+          )}
         </div>
       </div>
 
@@ -974,16 +968,16 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
               borderLeft: isActive ? `3px solid ${pal.border.replace('0.35','0.8')}` : '3px solid transparent',
             }}>
               <span style={{
-                color: isSold ? 'var(--color-border)' : isActive ? pal.label : 'var(--color-heading)',
+                color: isSold ? '#6b7280' : isActive ? pal.label : 'var(--color-heading)',
                 fontSize: 12, textDecoration: isSold ? 'line-through' : 'none',
-                opacity: isSold ? 0.55 : 1, flex: 1, minWidth: 0,
+                flex: 1, minWidth: 0,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {p.name}
               </span>
               {isSold && saleTeam && (
-                <span style={{ color: 'var(--color-text)', fontSize: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                  → {saleTeam.name} · ${sale.price}
+                <span style={{ color: '#9ca3af', fontSize: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  → {saleTeam.name} · {Number(sale.price).toLocaleString()}
                 </span>
               )}
             </div>
@@ -1164,7 +1158,7 @@ function LiveAuctionTab() {
 
   function handlePaddleClick(teamId) {
     if (!selected) return
-    if (teamId === highBidder) { toast(`Already winning at $${currentBid}`); return }
+    if (teamId === highBidder) { toast(`Already winning at ${currentBid.toLocaleString()}`); return }
     const inc = BID_INCREMENT[selected.category]
     const newBid = highBidder === null ? currentBid : currentBid + inc
     animateBid(currentBid, newBid)
@@ -1225,12 +1219,12 @@ function LiveAuctionTab() {
   }
 
   async function handleUndo() {
-    if (!lastSale?.saleId) return
-    const { error: updErr } = await supabase.from('auction_sales').update({ voided: true }).eq('id', lastSale.saleId)
+    if (!lastNonVoidedSale?.id) return
+    const { error: updErr } = await supabase.from('auction_sales').update({ voided: true }).eq('id', lastNonVoidedSale.id)
     if (updErr) { toast('Undo failed'); return }
-    setSales(prev => prev.map(s => s.id === lastSale.saleId ? { ...s, voided: true } : s))
-    setLastSale(null); setUndoConfirm(false)
-    toast('Sale undone')
+    setSales(prev => prev.map(s => s.id === lastNonVoidedSale.id ? { ...s, voided: true } : s))
+    setUndoConfirm(false)
+    toast('Undone')
   }
 
   // ── derived state ──────────────────────────────────────────────────────────
@@ -1283,13 +1277,25 @@ function LiveAuctionTab() {
     return m
   }, [sales])
 
+  const lastNonVoidedSale = useMemo(() => {
+    const active = sales.filter(s => !s.voided)
+    if (!active.length) return null
+    const latest = active.reduce((a, b) => new Date(a.sold_at) >= new Date(b.sold_at) ? a : b)
+    const player = s6Players.find(p => p.id === latest.s6_player_id)
+    const team = s6Teams.find(t => t.id === latest.s6_team_id)
+    return { ...latest, playerName: player?.name ?? '—', teamName: team?.name ?? '—' }
+  }, [sales, s6Players, s6Teams])
+
   const inc = selected ? BID_INCREMENT[selected.category] : 0
   const nextBidPrice = selected ? (highBidder === null ? currentBid : currentBid + inc) : 0
   const highBidderTeam = highBidder ? teamInfo.find(t => t.id === highBidder) : null
   const allTeamsBroke = selected && teamInfo.length > 0 &&
     teamInfo.every(t => t.id === highBidder || t.slotsLeft <= 0 || t.remaining < nextBidPrice)
 
-  function fmtBid(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1) }
+  function fmtBid(n) {
+    if (Number.isInteger(n)) return n.toLocaleString()
+    return Number(n.toFixed(1)).toLocaleString()
+  }
 
   // ── render ─────────────────────────────────────────────────────────────────
 
@@ -1316,7 +1322,7 @@ function LiveAuctionTab() {
           <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10, animation: 'slideUp 0.2s ease both' }}>SOLD TO</div>
             <div style={{ fontSize: 56, fontWeight: 900, color: soldOverlay.teamColor || '#f59e0b', lineHeight: 1, marginBottom: 6, animation: 'slideUp 0.2s ease 0.06s both' }}>{soldOverlay.teamName}</div>
-            <div style={{ fontSize: 88, fontWeight: 900, color: '#fbbf24', lineHeight: 1, marginBottom: 14, fontVariantNumeric: 'tabular-nums', animation: 'slideUp 0.25s ease 0.12s both' }}>${soldOverlay.price}</div>
+            <div style={{ fontSize: 88, fontWeight: 900, color: '#fbbf24', lineHeight: 1, marginBottom: 14, fontVariantNumeric: 'tabular-nums', animation: 'slideUp 0.25s ease 0.12s both' }}>{Number(soldOverlay.price).toLocaleString()}</div>
             <div style={{ fontSize: 22, color: '#d1d5db', fontWeight: 500, animation: 'slideUp 0.25s ease 0.18s both' }}>{soldOverlay.playerName}</div>
             <div style={{ marginTop: 28, color: '#6b7280', fontSize: 12 }}>tap or press / to continue</div>
           </div>
@@ -1324,11 +1330,13 @@ function LiveAuctionTab() {
       )}
 
       {/* Undo confirm dialog */}
-      {undoConfirm && lastSale && (
+      {undoConfirm && lastNonVoidedSale && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120 }}>
           <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 28, maxWidth: 360, width: '90%', textAlign: 'center' }}>
             <p style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 600, margin: '0 0 8px' }}>Undo sale?</p>
-            <p style={{ color: 'var(--color-text)', fontSize: 13, margin: '0 0 20px' }}>{lastSale.playerName} → {lastSale.teamName} for ${lastSale.price}</p>
+            <p style={{ color: 'var(--color-text)', fontSize: 13, margin: '0 0 20px' }}>
+              {lastNonVoidedSale.playerName} → {lastNonVoidedSale.teamName} for {Number(lastNonVoidedSale.price).toLocaleString()}
+            </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button onClick={handleUndo} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Yes, undo</button>
               <button onClick={() => setUndoConfirm(false)} style={{ background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
@@ -1337,7 +1345,17 @@ function LiveAuctionTab() {
         </div>
       )}
 
-      {/* (undo now lives above the paddle row) */}
+      {/* Undo — top-right meta action, visible in both idle and bidding states */}
+      {lastNonVoidedSale && !soldOverlay && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+          <button
+            onClick={() => setUndoConfirm(true)}
+            style={{ color: '#6b7280', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}
+          >
+            ↶ Undo last sale
+          </button>
+        </div>
+      )}
 
       {/* ── IDLE STATE ────────────────────────────────────────────────────── */}
       {!selected && (
@@ -1368,7 +1386,7 @@ function LiveAuctionTab() {
                       <div key={p.id} onMouseDown={() => { selecting.current = true }} onClick={() => { selecting.current = false; selectPlayer(p) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }} className="hover:bg-blue-500/10">
                         <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 12, padding: '1px 8px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{p.category}</span>
                         <span style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 500 }}>{p.name}</span>
-                        <span style={{ color: 'var(--color-text)', fontSize: 13, marginLeft: 'auto', flexShrink: 0 }}>${p.base_price}</span>
+                        <span style={{ color: 'var(--color-text)', fontSize: 13, marginLeft: 'auto', flexShrink: 0 }}>{p.base_price.toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -1422,7 +1440,7 @@ function LiveAuctionTab() {
                       <div key={p.id} onMouseDown={() => { selecting.current = true }} onClick={() => { selecting.current = false; selectPlayer(p) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--color-border)' }} className="hover:bg-blue-500/10">
                         <span style={{ background: CAT_PALETTE[p.category].bg, color: CAT_PALETTE[p.category].label, border: `1px solid ${CAT_PALETTE[p.category].border}`, borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{p.category}</span>
                         <span style={{ color: 'var(--color-heading)', fontSize: 13 }}>{p.name}</span>
-                        <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>${p.base_price}</span>
+                        <span style={{ color: 'var(--color-text)', fontSize: 12, marginLeft: 'auto', flexShrink: 0 }}>{p.base_price.toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -1450,32 +1468,29 @@ function LiveAuctionTab() {
           </div>
 
           {/* Current bid strip */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '10px 18px', animation: 'slideUp 0.2s ease 0.1s both' }}>
-            {/* Main row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '5px 14px', animation: 'slideUp 0.2s ease 0.1s both' }}>
+            {/* Single compact row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 36 }}>
               {highBidder ? (
                 <>
-                  <div>
-                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 1 }}>Current Bid</div>
-                    <div style={{ color: 'var(--color-heading)', fontSize: 52, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>${fmtBid(displayBid)}</div>
-                  </div>
-                  <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>Held by</div>
-                    <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: '#fff', borderRadius: 20, padding: '4px 16px', fontSize: 16, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both' }}>
-                      {highBidderTeam?.name}
-                    </span>
-                  </div>
+                  <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Bid</span>
+                  <span style={{ color: 'var(--color-heading)', fontSize: 28, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtBid(displayBid)}</span>
+                  <span style={{ color: 'var(--color-border)', flexShrink: 0 }}>·</span>
+                  <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Held by</span>
+                  <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: '#fff', borderRadius: 20, padding: '3px 12px', fontSize: 13, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both', flexShrink: 0 }}>
+                    {highBidderTeam?.name}
+                  </span>
                 </>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ color: 'var(--color-text)', fontSize: 18 }}>Awaiting first bid</span>
+                <>
+                  <span style={{ color: 'var(--color-text)', fontSize: 13 }}>Awaiting first bid</span>
                   <span style={{ color: 'var(--color-border)' }}>·</span>
-                  <span style={{ color: 'var(--color-heading)', fontSize: 18, fontWeight: 700 }}>Base ${selected.base_price}</span>
-                </div>
+                  <span style={{ color: 'var(--color-heading)', fontSize: 13, fontWeight: 700 }}>Base {selected.base_price.toLocaleString()}</span>
+                </>
               )}
               <button
                 onClick={() => setShowManualBid(v => !v)}
-                style={{ marginLeft: highBidder ? 12 : 'auto', color: '#6b7280', background: 'transparent', border: 'none', padding: '2px 6px', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0, whiteSpace: 'nowrap' }}
+                style={{ marginLeft: 'auto', color: '#6b7280', background: 'transparent', border: 'none', padding: '2px 6px', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0, whiteSpace: 'nowrap' }}
               >
                 {showManualBid ? 'close' : 'set manually'}
               </button>
@@ -1508,18 +1523,6 @@ function LiveAuctionTab() {
       {/* ── PADDLES + SOLD ROW (always rendered) ────────────────────────── */}
       <div style={{ marginTop: selected ? 14 : 28 }}>
 
-        {/* Undo strip — above paddles, right-aligned */}
-        {lastSale && !soldOverlay && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-            <button
-              onClick={() => setUndoConfirm(true)}
-              style={{ color: 'var(--color-text)', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}
-            >
-              ↶ Undo last sale
-            </button>
-          </div>
-        )}
-
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 10 }}>
         {/* Team paddles */}
         {teamInfo.map(team => {
@@ -1531,7 +1534,7 @@ function LiveAuctionTab() {
           return (
             <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
               <span style={{ color: selected ? (isHighBidder ? 'var(--color-heading)' : 'var(--color-text)') : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 600, fontVariantNumeric: 'tabular-nums' }}>
-                ${team.spent} / ${team.budget_total}
+                {team.spent.toLocaleString()} / {team.budget_total.toLocaleString()}
               </span>
               <button
                 onClick={() => handlePaddleClick(team.id)}
