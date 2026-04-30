@@ -1318,7 +1318,7 @@ function LiveAuctionTab() {
 
       {/* SOLD overlay */}
       {soldOverlay && (
-        <div onClick={abortOverlay} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 150, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}>
+        <div onClick={abortOverlay} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}>
           <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10, animation: 'slideUp 0.2s ease both' }}>SOLD TO</div>
             <div style={{ fontSize: 56, fontWeight: 900, color: soldOverlay.teamColor || '#f59e0b', lineHeight: 1, marginBottom: 6, animation: 'slideUp 0.2s ease 0.06s both' }}>{soldOverlay.teamName}</div>
@@ -1531,9 +1531,11 @@ function LiveAuctionTab() {
           const hasSlots = team.slotsLeft > 0
           const disabled = !selected || !hasSlots || !canAffordNext
           const isPulsing = pulsePaddle === team.id
+          const paddleActive = selected && (isHighBidder || !disabled)
+          const btnTextColor = paddleActive ? captainTextColor(team.color) : (!selected ? 'var(--color-border)' : 'var(--color-text)')
           return (
             <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <span style={{ color: selected ? (isHighBidder ? 'var(--color-heading)' : 'var(--color-text)') : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 600, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ color: selected ? team.color : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 400, fontVariantNumeric: 'tabular-nums', opacity: selected ? (isHighBidder ? 1 : 0.7) : 1 }}>
                 {team.spent.toLocaleString()} / {team.budget_total.toLocaleString()}
               </span>
               <button
@@ -1543,10 +1545,11 @@ function LiveAuctionTab() {
                 style={{
                   width: '100%', flex: 1,
                   background: !selected ? 'var(--color-surface)' : isHighBidder ? team.color : disabled ? 'rgba(255,255,255,0.04)' : team.color,
-                  color: !selected ? 'var(--color-border)' : (isHighBidder || !disabled) ? '#fff' : 'var(--color-text)',
+                  color: btnTextColor,
                   border: isHighBidder
                     ? '2px solid rgba(255,255,255,0.85)'
-                    : `2px solid ${!selected ? 'var(--color-border)' : disabled ? 'rgba(255,255,255,0.08)' : team.color}`,
+                    : paddleActive ? '2px solid rgba(255,255,255,0.35)'
+                    : `2px solid ${!selected ? 'var(--color-border)' : 'rgba(255,255,255,0.08)'}`,
                   borderRadius: 12, padding: '13px 8px', fontSize: 14, fontWeight: 700,
                   cursor: (!selected || (disabled && !isHighBidder)) ? 'default' : 'pointer',
                   opacity: !selected ? 0.4 : (disabled && !isHighBidder) ? 0.3 : 1,
