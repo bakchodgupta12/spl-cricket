@@ -768,6 +768,28 @@ function CategoriesTab() {
           </div>
         )}
 
+        {/* Bidding rules strip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ color: MUTED, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+            Bidding
+          </span>
+          {[
+            { cat: 'A', base: '2,000', inc: '+500',  pal: CAT_PALETTE.A },
+            { cat: 'B', base: '1,000', inc: '+300',  pal: CAT_PALETTE.B },
+            { cat: 'C', base: '500',   inc: '+200',  pal: CAT_PALETTE.C },
+            { cat: 'D', base: '200',   inc: '+100',  pal: CAT_PALETTE.D },
+          ].map((b, i) => (
+            <span key={b.cat} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {i > 0 && <span style={{ color: BORDER, fontSize: 11, flexShrink: 0 }}>·</span>}
+              <span style={{ background: b.pal.bg, border: `1px solid ${b.pal.border}`, borderRadius: 4, padding: '2px 8px', fontSize: 11, display: 'inline-flex', gap: 3 }}>
+                <span style={{ color: b.pal.label, fontWeight: 700 }}>{b.cat}</span>
+                <span style={{ color: MUTED }}>{b.base} /</span>
+                <span style={{ color: b.pal.text, fontWeight: 600 }}>{b.inc}</span>
+              </span>
+            </span>
+          ))}
+        </div>
+
         {/* Divider */}
         <div style={{ height: 1, background: BORDER }} />
 
@@ -818,7 +840,7 @@ function CategoriesTab() {
 // ─── LiveAuctionTab ───────────────────────────────────────────────────────────
 
 const MAX_SLOTS = 8
-const BID_INCREMENT = { A: 1, B: 1, C: 0.5, D: 0.5 }
+const BID_INCREMENT = { A: 500, B: 300, C: 200, D: 100 }
 
 // Compact stat display for the player card
 function LiveStatRow({ label, value }) {
