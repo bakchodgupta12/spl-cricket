@@ -1388,8 +1388,9 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   )
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    const pool = q ? available.filter(p => p.name.toLowerCase().includes(q)) : available
-    return pool.slice(0, 12)
+    if (q) return available.filter(p => p.name.toLowerCase().includes(q)).slice(0, 12)
+    // No query: default to all unsold Cat A players alphabetically
+    return available.filter(p => p.category === 'A').slice(0, 12)
   }, [available, searchQuery])
 
   // Shape X = 1A·3B·3C·1D  Shape Y = 2A·2B·2C·2D  (captain pre-counts as 1B)
