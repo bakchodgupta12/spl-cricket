@@ -859,7 +859,15 @@ function CategoriesTab() {
 // ─── LiveAuctionTab ───────────────────────────────────────────────────────────
 
 const MAX_SLOTS = 8
+const MAX_PURCHASES = 7 // captain fills 1 of 8 slots
 const BID_INCREMENT = { A: 500, B: 300, C: 200, D: 100 }
+
+// Shape X = 1A·3B·3C·1D  Shape Y = 2A·2B·2C·2D  (captain pre-counts as 1B)
+const CAT_MAX = {
+  null: { A: 2, B: 3, C: 3, D: 2 },
+  X:    { A: 1, B: 3, C: 3, D: 1 },
+  Y:    { A: 2, B: 2, C: 2, D: 2 },
+}
 
 // Round avg to nearest increment — half-down (floor of avg + inc/2)
 // e.g. avg=3950, inc=300 → floor(4100/300)*300 = 3900
@@ -875,10 +883,12 @@ function LiveStatRow({ label, value }) {
   )
 }
 
-function LiveStatBlock({ title, rows, emptyMsg }) {
+function LiveStatBlock({ title, rows, emptyMsg, icon }) {
   return (
     <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
-      <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>{title}</p>
+      <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>
+        {icon && <span style={{ marginRight: 4, fontSize: 11 }}>{icon}</span>}{title}
+      </p>
       {emptyMsg
         ? <p style={{ color: 'var(--color-text)', fontSize: 12, fontStyle: 'italic', margin: 0 }}>{emptyMsg}</p>
         : rows.map(r => <LiveStatRow key={r.label} label={r.label} value={r.value} />)
@@ -956,9 +966,6 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
       <div>
         <h2 style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{player.name}</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <span style={{ background: pal.bg, color: pal.label, border: `1px solid ${pal.border}`, borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 700 }}>
-            Category {player.category}
-          </span>
           {player.is_debut && (
             <span style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.45)', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
               Debut
@@ -991,9 +998,9 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8 }}>
-            <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} />
-            <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} />
-            <LiveStatBlock title="Fielding" rows={fieldingRows} />
+            <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} icon={stats.bat_innings  > 0 ? '🏏' : undefined} />
+            <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} icon={stats.bowl_innings > 0 ? '🎯' : undefined} />
+            <LiveStatBlock title="Fielding" rows={fieldingRows} icon="🧤" />
           </div>
 
           {stats.times_captained > 0 && (
@@ -1181,18 +1188,18 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
           .slice(0, 3)
           .forEach(([pid], i) => { tags[pid] = [...(tags[pid] || []), labels[i]] })
       }
-      top3(totRuns, ['Top run scorer', '2nd in runs', '3rd in runs'])
-      top3(totWick, ['Top wicket-taker', '2nd in wickets', '3rd in wickets'])
-      top3(hs,      ['Highest score', '2nd highest score', '3rd highest score'])
-      top3(finCt,   ['Most finals', '2nd most finals', '3rd most finals'])
-      top3(catchCt, ['Most catches', '2nd most catches', '3rd most catches'])
+      top3(totRuns, ['Highest run-scorer', '2nd highest run-scorer', '3rd highest run-scorer'])
+      top3(totWick, ['Highest wicket-taker', '2nd highest wicket-taker', '3rd highest wicket-taker'])
+      top3(hs,      ['Highest individual score', '2nd highest individual score', '3rd highest individual score'])
+      top3(finCt,   ['Most finals played', '2nd most finals played', '3rd most finals played'])
+      top3(catchCt, ['Most catches taken', '2nd most catches taken', '3rd most catches taken'])
       // Best bowling: sort wickets desc, runs asc
       Object.entries(bestBowl)
         .filter(([, v]) => v.w > 0)
         .sort((a, b) => b[1].w !== a[1].w ? b[1].w - a[1].w : a[1].r - b[1].r)
         .slice(0, 3)
         .forEach(([pid], i) => {
-          tags[pid] = [...(tags[pid] || []), ['Best bowling', '2nd best bowling', '3rd best bowling'][i]]
+          tags[pid] = [...(tags[pid] || []), ['Best bowling figures', '2nd best bowling figures', '3rd best bowling figures'][i]]
         })
       setStatTags(tags)
     }
@@ -1441,14 +1448,6 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     const defaultCat = CATEGORIES.find(cat => available.some(p => p.category === cat))
     return defaultCat ? available.filter(p => p.category === defaultCat).slice(0, 12) : []
   }, [available, searchQuery])
-
-  // Shape X = 1A·3B·3C·1D  Shape Y = 2A·2B·2C·2D  (captain pre-counts as 1B)
-  const CAT_MAX = {
-    null: { A: 2, B: 3, C: 3, D: 2 }, // max when shape still undecided
-    X:    { A: 1, B: 3, C: 3, D: 1 },
-    Y:    { A: 2, B: 2, C: 2, D: 2 },
-  }
-  const MAX_PURCHASES = 7 // captain fills 1 of 8 slots
 
   const teamInfo = useMemo(() => {
     // Pass 1 — per-team base info and own lock state
@@ -1880,7 +1879,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
 
           {/* Auto-allocation panel OR normal bid strip */}
           {autoAllocMode ? (
-            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 10, padding: '14px 18px', animation: 'slideUp 0.2s ease 0.1s both' }}>
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 10, padding: '14px 18px', animation: 'fadeIn 0.3s ease both' }}>
               <div style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
                 Auto-allocation — forced sale
               </div>
