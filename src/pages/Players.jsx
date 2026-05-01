@@ -6,36 +6,45 @@ import { groupBy, ballsToOvers, fmtNum, fmtHalf, computeStats } from '../lib/cri
 // ─── column definitions ───────────────────────────────────────────────────────
 
 const COLS = [
-  { key: 'name',             label: 'Player',   sortKey: 'name',            title: 'Player name', sticky: true, stickyLeft: 44 },
-  { key: 'seasons_display',  label: 'Seasons',  sortKey: 'season_count',    title: 'Seasons played' },
-  { key: 'teams_display',    label: 'Teams',    sortKey: 'teams_display',   title: 'Teams played for' },
-  { key: 'matches',          label: 'M',        sortKey: 'matches',         title: 'Matches played' },
-  { key: 'bat_innings',      label: 'Inn',      sortKey: 'bat_innings',     title: 'Batting innings' },
-  { key: 'runs',             label: 'Runs',     sortKey: 'runs',            title: 'Total runs scored' },
-  { key: 'avg_display',      label: 'Avg',      sortKey: 'avg_num',         title: 'Batting average' },
-  { key: 'sr_display',       label: 'SR',       sortKey: 'sr_num',          title: 'Strike rate' },
-  { key: 'hs_display',       label: 'HS',       sortKey: 'hs_runs',         title: 'High score (* = not out)' },
-  { key: 'fours',            label: '4s',       sortKey: 'fours',           title: 'Fours hit' },
-  { key: 'sixes',            label: '6s',       sortKey: 'sixes',           title: 'Sixes hit' },
-  { key: 'thirties',         label: '30+',      sortKey: 'thirties',        title: 'Innings of 30 or more' },
-  { key: 'fifties',          label: '50+',      sortKey: 'fifties',         title: 'Innings of 50 or more' },
-  { key: 'ducks',            label: '0s',       sortKey: 'ducks',           title: 'Ducks (0 off 1+ balls, dismissed)' },
-  { key: 'bowl_innings',     label: 'Inn',      sortKey: 'bowl_innings',    title: 'Bowling innings' },
-  { key: 'overs_display',    label: 'Ovrs',     sortKey: 'balls_bowled',    title: 'Overs bowled' },
-  { key: 'wickets',          label: 'Wkts',     sortKey: 'wickets',         title: 'Wickets taken' },
-  { key: 'bb_display',       label: 'BB',       sortKey: 'bb_sort',         title: 'Best bowling (Runs/Wickets)' },
-  { key: 'bowl_avg_display', label: 'B.Avg',    sortKey: 'bowl_avg_num',    title: 'Bowling average' },
-  { key: 'eco_display',      label: 'Eco',      sortKey: 'eco_num',         title: 'Economy rate' },
-  { key: 'dot_pct_display',  label: 'Dot%',     sortKey: 'dot_pct_num',     title: 'Dot ball percentage' },
-  { key: 'catches',          label: 'Ct',       sortKey: 'catches',         title: 'Catches' },
-  { key: 'stumpings',        label: 'St',       sortKey: 'stumpings',       title: 'Stumpings' },
-  { key: 'run_outs',         label: 'RO',       sortKey: 'run_outs',        title: 'Run outs effected' },
-  { key: 'times_captained',  label: 'Cap',      sortKey: 'times_captained', title: 'Times captained' },
-  { key: 'capt_wins',        label: 'C.W',      sortKey: 'capt_wins',       title: 'Captain wins (+0.5 for abandoned)' },
-  { key: 'capt_losses',      label: 'C.L',      sortKey: 'capt_losses',     title: 'Captain losses' },
-  { key: 'capt_win_pct',     label: 'C.W%',     sortKey: 'capt_win_pct_num',title: 'Captain win %' },
-  { key: 'final_appearances',label: 'FA',       sortKey: 'final_appearances',title: 'Final appearances' },
+  { key: 'name',             label: 'Player',  sortKey: 'name',             title: 'Player name', sticky: true, stickyLeft: 44 },
+  { key: 'seasons_display',  label: 'Seasons', sortKey: 'season_count',     title: 'Seasons played' },
+  { key: 'teams_display',    label: 'Teams',   sortKey: 'teams_display',    title: 'Teams played for' },
+  { key: 'matches',          label: 'M',       sortKey: 'matches',          title: 'Matches played' },
+  { key: 'bat_innings',      label: 'Inn',     sortKey: 'bat_innings',      title: 'Batting innings' },
+  { key: 'runs',             label: 'Runs',    sortKey: 'runs',             title: 'Total runs scored' },
+  { key: 'avg_display',      label: 'Avg',     sortKey: 'avg_num',          title: 'Batting average' },
+  { key: 'sr_display',       label: 'SR',      sortKey: 'sr_num',           title: 'Strike rate' },
+  { key: 'hs_display',       label: 'HS',      sortKey: 'hs_runs',          title: 'High score (* = not out)' },
+  { key: 'fours',            label: '4s',      sortKey: 'fours',            title: 'Fours hit' },
+  { key: 'sixes',            label: '6s',      sortKey: 'sixes',            title: 'Sixes hit' },
+  { key: 'thirties',         label: '30+',     sortKey: 'thirties',         title: 'Innings of 30 or more' },
+  { key: 'fifties',          label: '50+',     sortKey: 'fifties',          title: 'Innings of 50 or more' },
+  { key: 'ducks',            label: '0s',      sortKey: 'ducks',            title: 'Ducks (0 off 1+ balls, dismissed)' },
+  { key: 'bowl_innings',     label: 'Inn',     sortKey: 'bowl_innings',     title: 'Bowling innings' },
+  { key: 'overs_display',    label: 'Ovrs',    sortKey: 'balls_bowled',     title: 'Overs bowled' },
+  { key: 'wickets',          label: 'Wkts',    sortKey: 'wickets',          title: 'Wickets taken' },
+  { key: 'bb_display',       label: 'BB',      sortKey: 'bb_sort',          title: 'Best bowling (Runs/Wickets)' },
+  { key: 'bowl_avg_display', label: 'B.Avg',   sortKey: 'bowl_avg_num',     title: 'Bowling average' },
+  { key: 'eco_display',      label: 'Eco',     sortKey: 'eco_num',          title: 'Economy rate' },
+  { key: 'dot_pct_display',  label: 'Dot%',    sortKey: 'dot_pct_num',      title: 'Dot ball percentage' },
+  { key: 'catches',          label: 'Ct',      sortKey: 'catches',          title: 'Catches' },
+  { key: 'stumpings',        label: 'St',      sortKey: 'stumpings',        title: 'Stumpings' },
+  { key: 'run_outs',         label: 'RO',      sortKey: 'run_outs',         title: 'Run outs effected' },
+  { key: 'times_captained',  label: 'Cap',     sortKey: 'times_captained',  title: 'Times captained' },
+  { key: 'capt_wins',        label: 'C.W',     sortKey: 'capt_wins',        title: 'Captain wins (+0.5 for abandoned)' },
+  { key: 'capt_losses',      label: 'C.L',     sortKey: 'capt_losses',      title: 'Captain losses' },
+  { key: 'capt_win_pct',     label: 'C.W%',    sortKey: 'capt_win_pct_num', title: 'Captain win %' },
+  { key: 'final_appearances',label: 'FA',      sortKey: 'final_appearances',title: 'Final appearances' },
 ]
+
+// Columns shown per view — name + shared cols always included
+const VIEW_COLS = {
+  Batting: new Set(['name', 'seasons_display', 'teams_display', 'matches', 'bat_innings', 'runs', 'avg_display', 'sr_display', 'hs_display', 'fours', 'sixes', 'thirties', 'fifties', 'ducks']),
+  Bowling: new Set(['name', 'seasons_display', 'teams_display', 'matches', 'bowl_innings', 'overs_display', 'wickets', 'bb_display', 'bowl_avg_display', 'eco_display', 'dot_pct_display']),
+  Others:  new Set(['name', 'seasons_display', 'teams_display', 'matches', 'catches', 'stumpings', 'run_outs', 'times_captained', 'capt_wins', 'capt_losses', 'capt_win_pct', 'final_appearances']),
+}
+
+const VIEW_DEFAULT_SORT = { Batting: 'runs', Bowling: 'wickets', Others: 'final_appearances' }
 
 // ─── component ────────────────────────────────────────────────────────────────
 
@@ -45,8 +54,10 @@ export default function Players() {
   const [error, setError] = useState(null)
 
   const [search, setSearch] = useState('')
-  const [seasonFilter, setSeasonFilter] = useState(new Set())   // empty = all
-  const [teamFilter, setTeamFilter] = useState(new Set())       // empty = all
+  const [viewMode, setViewMode] = useState('Batting')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [seasonFilter, setSeasonFilter] = useState(new Set())
+  const [teamFilter, setTeamFilter] = useState(new Set())
 
   const [sortKey, setSortKey] = useState('runs')
   const [sortDir, setSortDir] = useState('desc')
@@ -89,27 +100,26 @@ export default function Players() {
     fetchAll()
   }, [])
 
-  // Compute per-player stats once raw data is available
   const allRows = useMemo(() => {
     if (!rawData) return []
     return computeStats(
-      rawData.players,
-      rawData.squads,
-      rawData.batting,
-      rawData.bowling,
-      rawData.fielding,
-      rawData.seasonNumById,
+      rawData.players, rawData.squads, rawData.batting,
+      rawData.bowling, rawData.fielding, rawData.seasonNumById,
     )
   }, [rawData])
 
-  // Available filter options (derived from computed rows)
+  const allSeasons = useMemo(() => {
+    const s = new Set()
+    for (const r of allRows) for (const n of r.season_nums) s.add(n)
+    return [...s].sort((a, b) => a - b)
+  }, [allRows])
+
   const allTeams = useMemo(() => {
     const s = new Set()
     for (const r of allRows) for (const t of r.team_names) s.add(t)
     return [...s].sort()
   }, [allRows])
 
-  // Attach display values and sort helper values
   const rowsWithDisplay = useMemo(() => allRows.map(r => ({
     ...r,
     seasons_display: r.season_nums.join(', '),
@@ -126,23 +136,18 @@ export default function Players() {
     capt_win_pct: fmtNum(r.capt_win_pct_num, 1),
   })), [allRows])
 
-  // Filter
-  const filtered = useMemo(() => {
-    return rowsWithDisplay.filter(r => {
-      if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false
-      if (seasonFilter.size > 0 && !r.season_nums.some(n => seasonFilter.has(n))) return false
-      if (teamFilter.size > 0 && !r.team_names.some(t => teamFilter.has(t))) return false
-      return true
-    })
-  }, [rowsWithDisplay, search, seasonFilter, teamFilter])
+  const filtered = useMemo(() => rowsWithDisplay.filter(r => {
+    if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (seasonFilter.size > 0 && !r.season_nums.some(n => seasonFilter.has(n))) return false
+    if (teamFilter.size > 0 && !r.team_names.some(t => teamFilter.has(t))) return false
+    return true
+  }), [rowsWithDisplay, search, seasonFilter, teamFilter])
 
-  // Sort
   const sorted = useMemo(() => {
     const col = COLS.find(c => c.sortKey === sortKey)
     if (!col) return filtered
     return [...filtered].sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
+      const av = a[sortKey], bv = b[sortKey]
       if (av == null && bv == null) return 0
       if (av == null) return 1
       if (bv == null) return -1
@@ -151,26 +156,28 @@ export default function Players() {
     })
   }, [filtered, sortKey, sortDir])
 
+  const visibleCols = useMemo(() => COLS.filter(c => VIEW_COLS[viewMode].has(c.key)), [viewMode])
+
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('desc') }
   }
 
+  function setView(mode) {
+    setViewMode(mode)
+    setSortKey(VIEW_DEFAULT_SORT[mode])
+    setSortDir('desc')
+  }
+
   function toggleSeason(n) {
-    setSeasonFilter(prev => {
-      const next = new Set(prev)
-      next.has(n) ? next.delete(n) : next.add(n)
-      return next
-    })
+    setSeasonFilter(prev => { const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next })
   }
 
   function toggleTeam(t) {
-    setTeamFilter(prev => {
-      const next = new Set(prev)
-      next.has(t) ? next.delete(t) : next.add(t)
-      return next
-    })
+    setTeamFilter(prev => { const next = new Set(prev); next.has(t) ? next.delete(t) : next.add(t); return next })
   }
+
+  const activeFilterCount = seasonFilter.size + teamFilter.size
 
   // ── render ──────────────────────────────────────────────────────────────────
 
@@ -180,12 +187,9 @@ export default function Players() {
       {/* Page header */}
       <div
         style={{ borderBottom: '1px solid var(--color-border)' }}
-        className="px-4 sm:px-6 py-5 flex items-center justify-between gap-4"
+        className="px-4 sm:px-6 py-4 flex items-center justify-between gap-4"
       >
-        <h1
-          style={{ color: 'var(--color-heading)' }}
-          className="text-2xl font-bold tracking-tight"
-        >
+        <h1 style={{ color: 'var(--color-heading)' }} className="text-2xl font-bold tracking-tight">
           Players
         </h1>
         <input
@@ -198,65 +202,107 @@ export default function Players() {
             border: '1px solid var(--color-border)',
             color: 'var(--color-heading)',
           }}
-          className="w-48 sm:w-64 px-3 py-2 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-44 sm:w-60 px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
-      {/* Filters */}
+      {/* View pills + Filters toggle */}
       <div
         style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
-        className="px-4 sm:px-6 py-4 flex flex-col gap-3"
+        className="px-4 sm:px-6 py-3 flex items-center gap-3 flex-wrap"
       >
-        {/* Season pills */}
-        <div className="flex flex-wrap gap-2 items-center">
-          <span style={{ color: 'var(--color-text)' }} className="text-xs uppercase tracking-wider mr-1">Season</span>
-          {[1, 2, 3, 4, 5].map(n => {
-            const active = seasonFilter.has(n)
-            return (
-              <button
-                key={n}
-                onClick={() => toggleSeason(n)}
-                style={active
-                  ? { background: 'var(--color-accent)', color: '#fff', border: '1px solid var(--color-accent)' }
-                  : { background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }
-                }
-                className="px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80"
-              >
-                S{n}
-              </button>
-            )
-          })}
-        </div>
+        {['Batting', 'Bowling', 'Others'].map(mode => {
+          const active = viewMode === mode
+          return (
+            <button
+              key={mode}
+              onClick={() => setView(mode)}
+              style={active
+                ? { background: 'var(--color-accent)', color: '#fff', border: '1px solid var(--color-accent)' }
+                : { background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }
+              }
+              className="px-4 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80"
+            >
+              {mode}
+            </button>
+          )
+        })}
+        <button
+          onClick={() => setFiltersOpen(o => !o)}
+          style={{
+            background: activeFilterCount > 0 ? 'rgba(77,142,255,0.12)' : 'transparent',
+            color: activeFilterCount > 0 ? 'var(--color-accent)' : 'var(--color-text)',
+            border: `1px solid ${activeFilterCount > 0 ? 'var(--color-accent)' : 'var(--color-border)'}`,
+          }}
+          className="px-4 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80 ml-auto flex items-center gap-1.5"
+        >
+          Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} {filtersOpen ? '▲' : '▼'}
+        </button>
+      </div>
 
-        {/* Team pills */}
-        {allTeams.length > 0 && (
+      {/* Collapsible filter panel */}
+      {filtersOpen && (
+        <div
+          style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
+          className="px-4 sm:px-6 py-4 flex flex-col gap-3"
+        >
+          {/* Season pills */}
           <div className="flex flex-wrap gap-2 items-center">
-            <span style={{ color: 'var(--color-text)' }} className="text-xs uppercase tracking-wider mr-1">Team</span>
-            {allTeams.map(t => {
-              const active = teamFilter.has(t)
+            <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }} className="mr-1">Season</span>
+            {allSeasons.map(n => {
+              const active = seasonFilter.has(n)
               return (
                 <button
-                  key={t}
-                  onClick={() => toggleTeam(t)}
+                  key={n}
+                  onClick={() => toggleSeason(n)}
                   style={active
                     ? { background: 'var(--color-accent)', color: '#fff', border: '1px solid var(--color-accent)' }
                     : { background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }
                   }
-                  className="px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80 whitespace-nowrap"
+                  className="px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80"
                 >
-                  {t}
+                  S{n}
                 </button>
               )
             })}
           </div>
-        )}
 
-      </div>
+          {/* Team pills */}
+          {allTeams.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }} className="mr-1">Team</span>
+              {allTeams.map(t => {
+                const active = teamFilter.has(t)
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleTeam(t)}
+                    style={active
+                      ? { background: 'var(--color-accent)', color: '#fff', border: '1px solid var(--color-accent)' }
+                      : { background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }
+                    }
+                    className="px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80 whitespace-nowrap"
+                  >
+                    {t}
+                  </button>
+                )
+              })}
+              {(seasonFilter.size > 0 || teamFilter.size > 0) && (
+                <button
+                  onClick={() => { setSeasonFilter(new Set()); setTeamFilter(new Set()) }}
+                  style={{ color: '#f87171', border: '1px solid rgba(248,113,113,0.4)', background: 'transparent' }}
+                  className="px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80 ml-2"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Table */}
-      {error && (
-        <p style={{ color: '#f87171' }} className="p-6 text-sm">{error}</p>
-      )}
+      {error && <p style={{ color: '#f87171' }} className="p-6 text-sm">{error}</p>}
 
       {loading && (
         <div className="flex items-center justify-center py-24">
@@ -266,24 +312,26 @@ export default function Players() {
 
       {!loading && !error && (
         <div className="overflow-x-auto">
-          <table className="text-sm border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
+          <table className="border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
             <thead>
-              <tr style={{ background: 'var(--color-surface)', borderBottom: '2px solid var(--color-border)' }}
+              <tr style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}
                   className="sticky top-0 z-10">
+                {/* Row number */}
                 <th
                   style={{
                     color: 'var(--color-text)',
                     background: 'var(--color-surface)',
                     borderRight: '1px solid var(--color-border)',
-                    borderBottom: '2px solid var(--color-border)',
+                    borderBottom: '1px solid var(--color-border)',
                     position: 'sticky', left: 0, zIndex: 20,
                     width: '44px', minWidth: '44px',
+                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
                   }}
-                  className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider select-none whitespace-nowrap"
+                  className="px-3 py-2 text-center select-none whitespace-nowrap"
                 >
                   #
                 </th>
-                {COLS.map((col, i) => {
+                {visibleCols.map(col => {
                   const active = sortKey === col.sortKey
                   return (
                     <th
@@ -294,15 +342,14 @@ export default function Players() {
                         color: active ? 'var(--color-heading)' : 'var(--color-text)',
                         background: 'var(--color-surface)',
                         borderRight: '1px solid var(--color-border)',
-                        borderBottom: '2px solid var(--color-border)',
+                        borderBottom: '1px solid var(--color-border)',
+                        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
                         ...(col.sticky ? { position: 'sticky', left: col.stickyLeft ?? 0, zIndex: 20 } : {}),
                       }}
-                      className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap hover:opacity-80"
+                      className="px-3 py-2 text-left cursor-pointer select-none whitespace-nowrap hover:opacity-80"
                     >
                       {col.label}
-                      {active && (
-                        <span className="ml-1">{sortDir === 'desc' ? '▼' : '▲'}</span>
-                      )}
+                      {active && <span className="ml-1">{sortDir === 'desc' ? '▼' : '▲'}</span>}
                     </th>
                   )
                 })}
@@ -314,7 +361,7 @@ export default function Players() {
                 <tr
                   key={row.id}
                   style={{
-                    background: i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)',
+                    background: 'var(--color-bg)',
                     borderBottom: '1px solid var(--color-border)',
                   }}
                   className="hover:brightness-110 transition-all"
@@ -322,16 +369,17 @@ export default function Players() {
                   <td
                     style={{
                       color: 'var(--color-text)',
-                      background: i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)',
+                      background: 'var(--color-bg)',
                       borderRight: '1px solid var(--color-border)',
                       position: 'sticky', left: 0, zIndex: 1,
                       width: '44px', minWidth: '44px',
+                      fontSize: 12,
                     }}
                     className="px-3 py-2 whitespace-nowrap text-center"
                   >
                     {i + 1}
                   </td>
-                  {COLS.map(col => {
+                  {visibleCols.map(col => {
                     const isName = col.key === 'name'
                     const val = row[col.key] ?? row[col.sortKey]
                     return (
@@ -339,23 +387,19 @@ export default function Players() {
                         key={col.key}
                         style={{
                           color: isName ? 'var(--color-heading)' : 'var(--color-text)',
-                          background: col.sticky
-                            ? (i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)')
-                            : undefined,
+                          background: col.sticky ? 'var(--color-bg)' : undefined,
                           borderRight: '1px solid var(--color-border)',
+                          fontVariantNumeric: isName ? undefined : 'tabular-nums',
+                          fontSize: isName ? 14 : 13,
                           ...(col.sticky ? { position: 'sticky', left: col.stickyLeft ?? 0, zIndex: 1 } : {}),
                         }}
                         className={`px-3 py-2 whitespace-nowrap ${isName ? 'font-medium' : ''}`}
                       >
                         {isName
-                          ? <Link
-                              to={`/players/${row.id}`}
-                              style={{ color: 'var(--color-heading)' }}
-                              className="hover:underline"
-                            >
+                          ? <Link to={`/players/${row.id}`} style={{ color: 'var(--color-heading)' }} className="hover:underline">
                               {val}
                             </Link>
-                          : (val == null || val === undefined ? '—' : val)
+                          : (val == null ? '—' : val)
                         }
                       </td>
                     )

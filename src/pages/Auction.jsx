@@ -680,7 +680,7 @@ function CategoryColumn({ category, players }) {
             <span style={{ color: MUTED, fontSize: 11, minWidth: 20, textAlign: 'right', flexShrink: 0 }}>
               {i + 1}.
             </span>
-            <span style={{ color: HEADING, fontSize: 13, whiteSpace: 'nowrap' }}>{p.name}</span>
+            <span style={{ color: HEADING, fontSize: 14, whiteSpace: 'nowrap' }}>{p.name}</span>
           </div>
         ))}
       </div>
@@ -2652,14 +2652,14 @@ export function FinalTeamListView() {
                   {team.players.map(p => (
                     <div key={p.saleId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: MUTED, fontSize: 10, width: 12, flexShrink: 0 }}>{p.category}</span>
-                      <span style={{ color: HEADING, fontSize: 12 }}>{p.name}</span>
+                      <span style={{ color: HEADING, fontSize: 14 }}>{p.name}</span>
                     </div>
                   ))}
                   {/* Empty slot placeholders */}
                   {Array.from({ length: emptySlots }).map((_, i) => (
                     <div key={`e${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: BORDER, fontSize: 10, width: 12, flexShrink: 0 }}>—</span>
-                      <span style={{ color: BORDER, fontSize: 12 }}>Empty slot</span>
+                      <span style={{ color: BORDER, fontSize: 14 }}>Empty slot</span>
                     </div>
                   ))}
                 </div>

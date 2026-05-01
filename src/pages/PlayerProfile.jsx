@@ -7,19 +7,16 @@ import { ballsToOvers, fmtNum, fmtHalf, computePlayerStats } from '../lib/cricke
 
 function StatRow({ label, value }) {
   return (
-    <div
-      className="flex items-baseline justify-between gap-4 py-2"
-      style={{ borderBottom: '1px solid var(--color-border)' }}
-    >
+    <div className="flex items-baseline justify-between gap-4" style={{ padding: '4px 0' }}>
       <span
-        style={{ color: 'var(--color-text)' }}
-        className="text-xs uppercase tracking-wider whitespace-nowrap"
+        style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+        className="whitespace-nowrap"
       >
         {label}
       </span>
       <span
         style={{ color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums' }}
-        className="text-xl font-bold leading-none"
+        className="text-base font-bold leading-none"
       >
         {value}
       </span>
@@ -31,14 +28,11 @@ function StatBlock({ title, rows, emptyMessage }) {
   return (
     <div
       style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)' }}
-      className="themed-card rounded-xl p-5 flex-1 min-w-0"
+      className="themed-card rounded-xl px-4 py-3 flex-1 min-w-0"
     >
-      <h3
-        style={{ color: 'var(--color-text)' }}
-        className="text-xs font-semibold uppercase tracking-widest mb-3"
-      >
-        {title}
-      </h3>
+      <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ color: 'var(--color-accent)', fontSize: 9 }}>•</span>{title}
+      </p>
       {emptyMessage
         ? <p style={{ color: 'var(--color-text)' }} className="text-sm italic py-2">{emptyMessage}</p>
         : rows.map(r => <StatRow key={r.label} label={r.label} value={r.value} />)
@@ -52,16 +46,16 @@ function LoadingSkeleton() {
     <div style={{ background: 'var(--color-bg)', minHeight: '100dvh' }} className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <div style={{ background: 'var(--color-border)' }} className="h-4 w-20 rounded animate-pulse mb-8" />
       <div className="flex items-center gap-5 mb-8">
-        <div style={{ background: 'var(--color-border)', width: 72, height: 72 }} className="rounded-full animate-pulse flex-shrink-0" />
+        <div style={{ background: 'var(--color-border)', width: 64, height: 64 }} className="rounded-full animate-pulse flex-shrink-0" />
         <div className="flex flex-col gap-2">
-          <div style={{ background: 'var(--color-border)' }} className="h-8 w-48 rounded animate-pulse" />
+          <div style={{ background: 'var(--color-border)' }} className="h-7 w-48 rounded animate-pulse" />
           <div style={{ background: 'var(--color-border)' }} className="h-4 w-32 rounded animate-pulse" />
         </div>
       </div>
       <div className="flex flex-col sm:flex-row gap-4">
         {[0, 1, 2].map(i => (
           <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)' }}
-               className="themed-card rounded-xl p-5 flex-1 h-64 animate-pulse" />
+               className="themed-card rounded-xl p-4 flex-1 h-64 animate-pulse" />
         ))}
       </div>
     </div>
@@ -237,17 +231,17 @@ export default function PlayerProfile() {
   const initials = stats.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   const battingRows = [
-    { label: 'Matches',      value: stats.matches },
-    { label: 'Innings',      value: stats.bat_innings },
-    { label: 'Runs',         value: stats.runs },
-    { label: 'Average',      value: fmtNum(stats.avg_num) },
-    { label: 'Strike Rate',  value: fmtNum(stats.sr_num) },
-    { label: 'High Score',   value: stats.hs_display },
-    { label: 'Fours',        value: stats.fours },
-    { label: 'Sixes',        value: stats.sixes },
-    { label: '30+',          value: stats.thirties },
-    { label: '50+',          value: stats.fifties },
-    { label: 'Ducks',        value: stats.ducks },
+    { label: 'Matches',     value: stats.matches },
+    { label: 'Innings',     value: stats.bat_innings },
+    { label: 'Runs',        value: stats.runs },
+    { label: 'Average',     value: fmtNum(stats.avg_num) },
+    { label: 'Strike Rate', value: fmtNum(stats.sr_num) },
+    { label: 'High Score',  value: stats.hs_display },
+    { label: 'Fours',       value: stats.fours },
+    { label: 'Sixes',       value: stats.sixes },
+    { label: '30+',         value: stats.thirties },
+    { label: '50+',         value: stats.fifties },
+    { label: 'Ducks',       value: stats.ducks },
   ]
 
   const bowlingRows = [
@@ -261,14 +255,14 @@ export default function PlayerProfile() {
   ]
 
   const fieldingRows = [
-    { label: 'Catches',      value: stats.catches },
-    { label: 'Stumpings',    value: stats.stumpings },
-    { label: 'Run Outs',     value: stats.run_outs },
+    { label: 'Catches',   value: stats.catches },
+    { label: 'Stumpings', value: stats.stumpings },
+    { label: 'Run Outs',  value: stats.run_outs },
   ]
 
   return (
     <div style={{ background: 'var(--color-bg)', minHeight: '100dvh' }}>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
 
         {/* Back */}
         <Link
@@ -280,80 +274,67 @@ export default function PlayerProfile() {
         </Link>
 
         {/* Header */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-4">
           <div
             style={{
               background: 'var(--color-accent-dim)',
               border: '2px solid var(--color-accent)',
               color: 'var(--color-accent)',
-              width: 72, height: 72, flexShrink: 0,
+              width: 64, height: 64, flexShrink: 0,
             }}
-            className="rounded-full flex items-center justify-center text-xl font-bold select-none"
+            className="rounded-full flex items-center justify-center text-lg font-bold select-none"
           >
             {initials}
           </div>
           <div>
             <h1
               style={{ color: 'var(--color-heading)' }}
-              className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight"
+              className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight"
             >
               {stats.name}
             </h1>
             <p style={{ color: 'var(--color-text)' }} className="text-sm mt-1">
-              {stats.season_nums.length > 0 && `Played seasons ${stats.season_nums.join(', ')}`}
+              {stats.season_nums.length > 0 && `Seasons ${stats.season_nums.join(', ')}`}
               {stats.season_nums.length > 0 && stats.team_names.length > 0 && '  ·  '}
               {stats.team_names.join(', ')}
             </p>
           </div>
         </div>
 
-        {/* Callout strips */}
-        <div className="flex flex-col gap-3">
+        {/* Callout pills */}
+        <div className="flex flex-wrap gap-2">
           {stats.times_captained > 0 && (
             <div
               style={{
-                background: 'var(--color-accent-dim)',
-                border: '1px solid var(--color-accent)',
-                borderLeft: '3px solid var(--color-accent)',
+                background: 'rgba(59,130,246,0.08)',
+                border: '1px solid rgba(59,130,246,0.3)',
+                color: '#93c5fd',
               }}
-              className="rounded-lg px-5 py-3 flex flex-wrap gap-x-6 gap-y-1 items-center"
+              className="rounded-lg px-4 py-1.5 flex flex-wrap gap-x-4 gap-y-0.5 items-center text-xs"
             >
-              <span style={{ color: 'var(--color-text)' }} className="text-xs uppercase tracking-wider font-semibold">
-                Captain
-              </span>
-              <span style={{ color: 'var(--color-heading)' }} className="text-sm">
-                Captained {stats.times_captained}
-              </span>
-              <span style={{ color: 'var(--color-heading)' }} className="text-sm">
-                Won {fmtHalf(stats.capt_wins)}
-              </span>
-              <span style={{ color: 'var(--color-heading)' }} className="text-sm">
-                Lost {fmtHalf(stats.capt_losses)}
-              </span>
-              <span style={{ color: 'var(--color-heading)' }} className="text-sm font-semibold">
-                Win% {fmtNum(stats.capt_win_pct_num, 1)}
-              </span>
+              <span className="font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text)' }}>👑 Captain</span>
+              <span>Captained {stats.times_captained}</span>
+              <span>Won {fmtHalf(stats.capt_wins)}</span>
+              <span>Lost {fmtHalf(stats.capt_losses)}</span>
+              <span className="font-semibold">Win% {fmtNum(stats.capt_win_pct_num, 1)}</span>
             </div>
           )}
-
           {stats.final_appearances > 0 && (
-            <div className="self-start">
-              <span
-                style={{
-                  background: 'var(--color-accent-dim)',
-                  color: 'var(--color-accent)',
-                  border: '1px solid var(--color-accent)',
-                }}
-                className="text-xs font-semibold px-3 py-1 rounded-full"
-              >
-                🏆 {stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}
-              </span>
-            </div>
+            <span
+              style={{
+                background: 'rgba(245,158,11,0.1)',
+                color: '#fbbf24',
+                border: '1px solid rgba(245,158,11,0.3)',
+              }}
+              className="text-xs font-semibold px-4 py-1.5 rounded-lg"
+            >
+              🏆 {stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}
+            </span>
           )}
         </div>
 
         {/* Stat blocks */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <StatBlock
             title="Batting"
             rows={battingRows}
@@ -378,22 +359,26 @@ export default function PlayerProfile() {
           <button
             onClick={() => setLogOpen(o => !o)}
             style={{ background: 'var(--color-surface)', color: 'var(--color-heading)' }}
-            className="w-full px-5 py-4 flex items-center justify-between text-sm font-semibold hover:opacity-80 transition-opacity"
+            className="w-full px-5 py-3 flex items-center justify-between hover:opacity-80 transition-opacity"
           >
-            <span>Match Log ({matchLog.length} matches)</span>
-            <span style={{ color: 'var(--color-text)' }}>{logOpen ? '▲' : '▼'}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ color: 'var(--color-accent)', fontSize: 9 }}>•</span>
+              Match Log
+              <span style={{ color: 'var(--color-text)', fontWeight: 400 }}>({matchLog.length})</span>
+            </span>
+            <span style={{ color: 'var(--color-text)', fontSize: 11 }}>{logOpen ? '▲' : '▼'}</span>
           </button>
 
           {logOpen && (
             <div className="overflow-x-auto">
-              <table className="text-sm border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
+              <table className="border-collapse" style={{ minWidth: 'max-content', width: '100%' }}>
                 <thead>
-                  <tr style={{ background: 'var(--color-surface)', borderBottom: '2px solid var(--color-border)' }}>
+                  <tr style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
                     {['Date', 'S', 'Type', 'vs', 'Bat', 'Bowl', 'Field'].map(h => (
                       <th
                         key={h}
-                        style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)' }}
-                        className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
+                        style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}
+                        className="px-3 py-2 text-left whitespace-nowrap"
                       >
                         {h}
                       </th>
@@ -405,24 +390,18 @@ export default function PlayerProfile() {
                     <tr
                       key={`${m.date}-${i}`}
                       style={{
-                        background: i % 2 === 0 ? 'var(--color-bg)' : 'var(--color-surface)',
+                        background: 'var(--color-bg)',
                         borderBottom: '1px solid var(--color-border)',
                       }}
+                      className="hover:brightness-110 transition-all"
                     >
-                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)' }}
-                          className="px-3 py-2 whitespace-nowrap">{m.date ?? '—'}</td>
-                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)' }}
-                          className="px-3 py-2 whitespace-nowrap">{m.season}</td>
-                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)' }}
-                          className="px-3 py-2 whitespace-nowrap">{m.matchType}</td>
-                      <td style={{ color: 'var(--color-heading)', borderRight: '1px solid var(--color-border)' }}
-                          className="px-3 py-2 whitespace-nowrap font-medium">{m.opp}</td>
-                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)', fontVariantNumeric: 'tabular-nums' }}
-                          className="px-3 py-2 whitespace-nowrap">{m.bat}</td>
-                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)', fontVariantNumeric: 'tabular-nums' }}
-                          className="px-3 py-2 whitespace-nowrap">{m.bowl}</td>
-                      <td style={{ color: 'var(--color-text)' }}
-                          className="px-3 py-2 whitespace-nowrap">{m.field}</td>
+                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)', fontVariantNumeric: 'tabular-nums' }} className="px-3 py-2 text-sm whitespace-nowrap">{m.date ?? '—'}</td>
+                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)' }} className="px-3 py-2 text-sm whitespace-nowrap">{m.season}</td>
+                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)' }} className="px-3 py-2 text-sm whitespace-nowrap">{m.matchType}</td>
+                      <td style={{ color: 'var(--color-heading)', borderRight: '1px solid var(--color-border)' }} className="px-3 py-2 text-sm whitespace-nowrap font-medium">{m.opp}</td>
+                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)', fontVariantNumeric: 'tabular-nums' }} className="px-3 py-2 text-sm whitespace-nowrap">{m.bat}</td>
+                      <td style={{ color: 'var(--color-text)', borderRight: '1px solid var(--color-border)', fontVariantNumeric: 'tabular-nums' }} className="px-3 py-2 text-sm whitespace-nowrap">{m.bowl}</td>
+                      <td style={{ color: 'var(--color-text)' }} className="px-3 py-2 text-sm whitespace-nowrap">{m.field}</td>
                     </tr>
                   ))}
                 </tbody>
