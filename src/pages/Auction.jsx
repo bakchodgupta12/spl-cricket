@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toPng } from 'html-to-image'
@@ -982,29 +983,38 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
         </div>
       </div>
 
-      {/* Stats body */}
+      {/* Stats body — container height is always reserved to prevent reflow */}
       {player.is_debut ? (
         <p style={{ color: 'var(--color-text)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>
           Debut player — no historical record
         </p>
-      ) : statsLoading ? (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <LiveStatBlockSkeleton rows={9} />
-          <LiveStatBlockSkeleton rows={7} />
-          <LiveStatBlockSkeleton rows={3} />
-        </div>
-      ) : !stats ? (
-        <p style={{ color: 'var(--color-text)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No historical data found.</p>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} icon={stats.bat_innings  > 0 ? '🏏' : undefined} />
-            <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} icon={stats.bowl_innings > 0 ? '🎯' : undefined} />
-            <LiveStatBlock title="Fielding" rows={fieldingRows} icon="🧤" />
+          {/* Fixed-height stat block container: skeleton → data, never reflowing */}
+          <div style={{ display: 'flex', gap: 8, minHeight: 280 }}>
+            {statsLoading ? (
+              <>
+                <LiveStatBlockSkeleton rows={9} />
+                <LiveStatBlockSkeleton rows={7} />
+                <LiveStatBlockSkeleton rows={3} />
+              </>
+            ) : !stats ? (
+              <>
+                <LiveStatBlock title="Batting"  rows={Array.from({ length: 9 }, () => ({ label: '—', value: '—' }))} icon="🏏" />
+                <LiveStatBlock title="Bowling"  rows={Array.from({ length: 7 }, () => ({ label: '—', value: '—' }))} icon="🎯" />
+                <LiveStatBlock title="Fielding" rows={Array.from({ length: 3 }, () => ({ label: '—', value: '—' }))} icon="🧤" />
+              </>
+            ) : (
+              <>
+                <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} icon={stats.bat_innings  > 0 ? '🏏' : undefined} />
+                <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} icon={stats.bowl_innings > 0 ? '🎯' : undefined} />
+                <LiveStatBlock title="Fielding" rows={fieldingRows} icon="🧤" />
+              </>
+            )}
           </div>
 
-          {stats.times_captained > 0 && (
-            <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#93c5fd', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {!statsLoading && stats?.times_captained > 0 && (
+            <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#93c5fd', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <span>👑 Captained {stats.times_captained}</span>
               <span>Win% {fmtNum(stats.capt_win_pct_num, 1)}</span>
               <span>{stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}</span>
@@ -1299,6 +1309,11 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     setSearchQuery(''); setSearchOpen(false); setShowBiddingSearch(false)
     setCurrentBid(p.base_price); setDisplayBid(p.base_price)
     setHighBidder(null); setShowManualBid(false)
+    // Show skeleton immediately before the fetch useEffect fires
+    if (!p.is_debut && p.mapped_player_id) {
+      setStats(null)
+      setStatsLoading(true)
+    }
   }
 
   function handlePaddleClick(teamId) {
@@ -1330,6 +1345,25 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     setSoldOverlay({ playerName, teamName, price, teamColor })
     overlayAborted.current = false
     confetti({ particleCount: 180, spread: 90, origin: { y: 0.45 }, colors: [teamColor || '#3b82f6', '#f59e0b', '#fff', '#34d399'], disableForReducedMotion: true })
+    // Debug: log stacking context after portal renders (~1 frame delay)
+    setTimeout(() => {
+      const overlay = document.querySelector('[data-sold-overlay]')
+      const search  = searchRef.current
+      console.log('[z-index debug] overlay el:', overlay)
+      console.log('[z-index debug] overlay parent is <body>:', overlay?.parentElement?.tagName === 'BODY')
+      if (overlay) console.log('[z-index debug] overlay computed z-index:', window.getComputedStyle(overlay).zIndex)
+      if (search) {
+        console.log('[z-index debug] search bar computed z-index:', window.getComputedStyle(search).zIndex)
+        let el = search.parentElement
+        while (el && el !== document.body) {
+          const s = window.getComputedStyle(el)
+          if (s.position !== 'static' || s.zIndex !== 'auto' || s.transform !== 'none' || s.filter !== 'none' || s.willChange !== 'auto') {
+            console.log('[z-index debug] search ancestor stacking context:', el.tagName, el.className, { position: s.position, zIndex: s.zIndex, transform: s.transform, filter: s.filter, willChange: s.willChange })
+          }
+          el = el.parentElement
+        }
+      }
+    }, 50)
     clearTimeout(overlayTimeoutRef.current)
     overlayTimeoutRef.current = setTimeout(() => {
       if (!overlayAborted.current) { setSoldOverlay(null); setTimeout(() => searchRef.current?.focus(), 50) }
@@ -1617,9 +1651,16 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
         </div>
       )}
 
-      {/* SOLD overlay */}
-      {soldOverlay && (
-        <div onClick={abortOverlay} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}>
+      {/* SOLD overlay — rendered as a React Portal directly under <body> to escape ALL
+          parent stacking contexts. position:fixed + z-index:9999 on a body-child is
+          guaranteed to sit above every in-page element regardless of transforms, filters,
+          or will-change on ancestor nodes. */}
+      {soldOverlay && createPortal(
+        <div
+          onClick={abortOverlay}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}
+          data-sold-overlay="1"
+        >
           <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10, animation: 'slideUp 0.2s ease both' }}>SOLD TO</div>
             <div style={{ fontSize: 56, fontWeight: 900, color: readableTeamColor(soldOverlay.teamColor || '#f59e0b'), lineHeight: 1, marginBottom: 6, animation: 'slideUp 0.2s ease 0.06s both' }}>{soldOverlay.teamName}</div>
@@ -1627,7 +1668,8 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
             <div style={{ fontSize: 22, color: '#d1d5db', fontWeight: 500, animation: 'slideUp 0.25s ease 0.18s both' }}>{soldOverlay.playerName}</div>
             <div style={{ marginTop: 28, color: '#6b7280', fontSize: 12 }}>tap or press / to continue</div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Undo confirm dialog */}
@@ -1974,8 +2016,8 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
             : !canAffordNext ? 'Out of budget'
             : undefined
           return (
-            <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <span style={{ color: selected ? team.color : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 400, fontVariantNumeric: 'tabular-nums', opacity: selected ? (isHighBidder ? 1 : 0.7) : 1 }}>
+            <div key={team.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}>
+              <span style={{ color: selected ? readableTeamColor(team.color) : 'var(--color-border)', fontSize: 11, fontWeight: isHighBidder ? 700 : 400, fontVariantNumeric: 'tabular-nums', opacity: selected ? (isHighBidder ? 1 : 0.7) : 1, textAlign: 'right' }}>
                 {team.spent.toLocaleString()} / {team.budget_total.toLocaleString()}
               </span>
               <button
@@ -2214,40 +2256,36 @@ function TeamCard({ team, isPulsing }) {
           }
         </div>
 
-        {/* Slot tracker — 8 segmented boxes */}
-        <div>
-          <span style={{ color: 'var(--color-text)', fontSize: 11, display: 'block', marginBottom: 5 }}>
-            {team.slotsFilledTotal} / {MAX_SLOTS} filled
-          </span>
-          <div style={{ display: 'flex', gap: 3 }}>
-            {Array.from({ length: MAX_SLOTS }).map((_, i) => (
-              <div key={i} style={{ flex: 1, height: 6, borderRadius: 3, background: i < team.slotsFilledTotal ? team.color : 'var(--color-border)', transition: 'background 0.3s ease' }} />
-            ))}
-          </div>
-        </div>
-
-        {/* Shape lock — only when forced/locked */}
-        {team.forcedShape && (
-          <p style={{ color: '#6b7280', fontSize: 10, margin: 0 }}>
-            {team.lockedShape ? 'Locked' : 'Forced'}: Shape {team.forcedShape} · {SHAPE_DETAIL[team.forcedShape]}
-          </p>
-        )}
-
-        {/* Budget */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ color: 'var(--color-text)', fontSize: 11 }}>Remaining</span>
-            {team.remaining < 0 && (
-              <span style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, padding: '1px 6px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', display: 'inline-block' }}>
-                BUDGET EXCEEDED
-              </span>
-            )}
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ color: team.remaining < 0 ? '#f87171' : 'var(--color-heading)', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-              {team.remaining.toLocaleString()}
+        {/* Footer: slot tracker + budget — pinned to bottom because players list above has flex:1 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Slot tracker — 8 segmented boxes */}
+          <div>
+            <span style={{ color: 'var(--color-text)', fontSize: 11, display: 'block', marginBottom: 5 }}>
+              {team.slotsFilledTotal} / {MAX_SLOTS} filled
+            </span>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {Array.from({ length: MAX_SLOTS }).map((_, i) => (
+                <div key={i} style={{ flex: 1, height: 6, borderRadius: 3, background: i < team.slotsFilledTotal ? readableTeamColor(team.color) : 'var(--color-border)', transition: 'background 0.3s ease' }} />
+              ))}
             </div>
-            <div style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>of {team.budget_total.toLocaleString()}</div>
+          </div>
+
+          {/* Budget */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ color: 'var(--color-text)', fontSize: 11 }}>Remaining</span>
+              {team.remaining < 0 && (
+                <span style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, padding: '1px 6px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', display: 'inline-block' }}>
+                  BUDGET EXCEEDED
+                </span>
+              )}
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: team.remaining < 0 ? '#f87171' : 'var(--color-heading)', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                {team.remaining.toLocaleString()}
+              </div>
+              <div style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>of {team.budget_total.toLocaleString()}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -2345,10 +2383,10 @@ export function FinalTeamListView() {
           <img src="/spl-logo.svg" alt="SPL" style={{ height: 64, width: 'auto', flexShrink: 0 }} />
           <div>
             <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
-              Superball Premier League — Season 6 Final Teams
+              Superball Premier League — Season 6 Team List
             </h1>
             <p style={{ color: MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
-              Auction complete · 2nd May 2026
+              Tournament Date: June 13th, 2026
             </p>
           </div>
         </div>
@@ -2368,12 +2406,13 @@ export function FinalTeamListView() {
                   </h3>
                 </div>
                 <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {/* Captain */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 5, borderBottom: `1px solid ${BORDER}`, marginBottom: 2 }}>
-                    <span style={{ fontSize: 11 }}>👑</span>
-                    <span style={{ color: HEADING, fontSize: 12, fontWeight: 700 }}>
+                  {/* Captain — consistent layout across all cards */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 5px', borderBottom: `1px solid ${BORDER}`, marginBottom: 2, lineHeight: 1.4 }}>
+                    <span style={{ fontSize: 11, flexShrink: 0 }}>👑</span>
+                    <span style={{ color: HEADING, fontSize: 12, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {team.captainPlayer?.name ?? '—'}
                     </span>
+                    <span style={{ color: MUTED, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>CAPTAIN</span>
                   </div>
                   {/* Bought players */}
                   {team.players.map(p => (
