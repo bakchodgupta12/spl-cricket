@@ -587,6 +587,25 @@ function captainTextColor(hex) {
   } catch { return '#ffffff' }
 }
 
+// Lighten a team color until it's readable against the dark background (#0f1117)
+function readableTeamColor(hex) {
+  try {
+    let r = parseInt(hex.slice(1, 3), 16)
+    let g = parseInt(hex.slice(3, 5), 16)
+    let b = parseInt(hex.slice(5, 7), 16)
+    const lum = c => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+    const luminance = () => 0.2126 * lum(r) + 0.7152 * lum(g) + 0.0722 * lum(b)
+    if (luminance() >= 0.08) return hex
+    for (let t = 0.2; t <= 1; t += 0.1) {
+      r = Math.round(r + (255 - r) * t)
+      g = Math.round(g + (255 - g) * t)
+      b = Math.round(b + (255 - b) * t)
+      if (luminance() >= 0.08) return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')
+    }
+    return '#9ca3af'
+  } catch { return hex }
+}
+
 function CategoryColumn({ category, players }) {
   const pal = CAT_PALETTE[category]
   const bid = COLUMN_BIDDING[category]
@@ -864,6 +883,20 @@ function LiveStatBlock({ title, rows, emptyMsg }) {
   )
 }
 
+function LiveStatBlockSkeleton({ rows }) {
+  return (
+    <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
+      <div style={{ height: 9, width: 44, background: 'var(--color-border)', borderRadius: 3, marginBottom: 10 }} className="animate-pulse" />
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
+          <div style={{ height: 7, width: 38, background: 'var(--color-border)', borderRadius: 3 }} className="animate-pulse" />
+          <div style={{ height: 11, width: 26, background: 'var(--color-border)', borderRadius: 3 }} className="animate-pulse" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const TAG_PALETTE = {
   run:    { bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa', border: 'rgba(59,130,246,0.4)'  },
   wicket: { bg: 'rgba(239,68,68,0.15)',   color: '#f87171', border: 'rgba(239,68,68,0.4)'   },
@@ -944,7 +977,11 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
           Debut player — no historical record
         </p>
       ) : statsLoading ? (
-        <p style={{ color: 'var(--color-text)', fontSize: 13, margin: 0 }} className="animate-pulse">Loading stats…</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <LiveStatBlockSkeleton rows={9} />
+          <LiveStatBlockSkeleton rows={7} />
+          <LiveStatBlockSkeleton rows={3} />
+        </div>
       ) : !stats ? (
         <p style={{ color: 'var(--color-text)', fontSize: 13, fontStyle: 'italic', margin: 0 }}>No historical data found.</p>
       ) : (
@@ -1035,9 +1072,11 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   const selecting = useRef(false)
 
   // ── bidding ───────────────────────────────────────────────────────────────
-  const [displayBid,  setDisplayBid]  = useState(currentBid) // init from prop on mount
-  const [pulsePaddle, setPulsePaddle] = useState(null)
-  const bidAnimRef = useRef(null)
+  const [displayBid,      setDisplayBid]      = useState(currentBid) // init from prop on mount
+  const [pulsePaddle,     setPulsePaddle]     = useState(null)
+  const [paddleWinningId, setPaddleWinningId] = useState(null)
+  const bidAnimRef           = useRef(null)
+  const paddleWinningTimerRef = useRef(null)
 
   // ── selling ───────────────────────────────────────────────────────────────
   const [selling,  setSelling]  = useState(false)
@@ -1224,7 +1263,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
       const t = Math.min((now - start) / duration, 1)
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
       const v = from + (to - from) * ease
-      setDisplayBid(v)
+      setDisplayBid(Math.round(v))
       if (t < 1) bidAnimRef.current = requestAnimationFrame(tick)
       else setDisplayBid(to)
     }
@@ -1253,7 +1292,12 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
 
   function handlePaddleClick(teamId) {
     if (!selected) return
-    if (teamId === highBidder) { toast(`Already winning at ${currentBid.toLocaleString()}`); return }
+    if (teamId === highBidder) {
+      clearTimeout(paddleWinningTimerRef.current)
+      setPaddleWinningId(teamId)
+      paddleWinningTimerRef.current = setTimeout(() => setPaddleWinningId(null), 800)
+      return
+    }
     const inc = BID_INCREMENT[selected.category]
     const newBid = highBidder === null ? currentBid : currentBid + inc
     animateBid(currentBid, newBid)
@@ -1389,8 +1433,9 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (q) return available.filter(p => p.name.toLowerCase().includes(q)).slice(0, 12)
-    // No query: default to all unsold Cat A players alphabetically
-    return available.filter(p => p.category === 'A').slice(0, 12)
+    // No query: show unsold players from the lowest-letter category that still has any
+    const defaultCat = CATEGORIES.find(cat => available.some(p => p.category === cat))
+    return defaultCat ? available.filter(p => p.category === defaultCat).slice(0, 12) : []
   }, [available, searchQuery])
 
   // Shape X = 1A·3B·3C·1D  Shape Y = 2A·2B·2C·2D  (captain pre-counts as 1B)
@@ -1571,10 +1616,10 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
 
       {/* SOLD overlay */}
       {soldOverlay && (
-        <div onClick={abortOverlay} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 500, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}>
+        <div onClick={abortOverlay} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}>
           <div style={{ textAlign: 'center', pointerEvents: 'none' }}>
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10, animation: 'slideUp 0.2s ease both' }}>SOLD TO</div>
-            <div style={{ fontSize: 56, fontWeight: 900, color: soldOverlay.teamColor || '#f59e0b', lineHeight: 1, marginBottom: 6, animation: 'slideUp 0.2s ease 0.06s both' }}>{soldOverlay.teamName}</div>
+            <div style={{ fontSize: 56, fontWeight: 900, color: readableTeamColor(soldOverlay.teamColor || '#f59e0b'), lineHeight: 1, marginBottom: 6, animation: 'slideUp 0.2s ease 0.06s both' }}>{soldOverlay.teamName}</div>
             <div style={{ fontSize: 88, fontWeight: 900, color: '#fbbf24', lineHeight: 1, marginBottom: 14, fontVariantNumeric: 'tabular-nums', animation: 'slideUp 0.25s ease 0.12s both' }}>{Number(soldOverlay.price).toLocaleString()}</div>
             <div style={{ fontSize: 22, color: '#d1d5db', fontWeight: 500, animation: 'slideUp 0.25s ease 0.18s both' }}>{soldOverlay.playerName}</div>
             <div style={{ marginTop: 28, color: '#6b7280', fontSize: 12 }}>tap or press / to continue</div>
@@ -1837,7 +1882,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ color: 'var(--color-heading)', fontSize: 15 }}>
-                  Only eligible team: <strong style={{ color: autoAllocTeam.color }}>{autoAllocTeam.name}</strong>
+                  Only eligible team: <strong style={{ color: readableTeamColor(autoAllocTeam.color) }}>{autoAllocTeam.name}</strong>
                 </span>
                 <span style={{ color: 'var(--color-border)' }}>·</span>
                 <span style={{ color: 'var(--color-text)', fontSize: 13 }}>
@@ -1858,7 +1903,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
                 {highBidder ? (
                   <>
                     <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Bid</span>
-                    <span style={{ color: 'var(--color-heading)', fontSize: 28, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtBid(displayBid)}</span>
+                    <span style={{ color: 'var(--color-heading)', fontSize: 28, fontWeight: 900, lineHeight: 1, fontVariantNumeric: 'tabular-nums', display: 'inline-block', minWidth: '4.5ch', textAlign: 'right' }}>{fmtBid(displayBid)}</span>
                     <span style={{ color: 'var(--color-border)', flexShrink: 0 }}>·</span>
                     <span style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Held by</span>
                     <span style={{ background: highBidderTeam?.color || 'var(--color-accent)', color: captainTextColor(highBidderTeam?.color || '#3b82f6'), borderRadius: 20, padding: '3px 12px', fontSize: 13, fontWeight: 700, display: 'inline-block', animation: 'slideInRight 0.2s ease both', flexShrink: 0 }}>
@@ -1954,6 +1999,11 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
                 {team.name}
                 {selected && !catOk && !autoAllocMode && (
                   <span style={{ position: 'absolute', bottom: 4, left: 0, right: 0, fontSize: 9, color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontWeight: 400 }}>Cat full</span>
+                )}
+                {paddleWinningId === team.id && (
+                  <span style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 6, background: '#1c1917', color: '#fbbf24', border: '1px solid #92400e', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10 }}>
+                    Already winning
+                  </span>
                 )}
               </button>
             </div>
