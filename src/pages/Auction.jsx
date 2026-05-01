@@ -861,6 +861,10 @@ function CategoriesTab() {
 const MAX_SLOTS = 8
 const BID_INCREMENT = { A: 500, B: 300, C: 200, D: 100 }
 
+// Round avg to nearest increment — half-down (floor of avg + inc/2)
+// e.g. avg=3950, inc=300 → floor(4100/300)*300 = 3900
+const roundToNearest = (avg, inc) => Math.floor((avg + inc / 2) / inc) * inc
+
 // Compact stat display for the player card
 function LiveStatRow({ label, value }) {
   return (
@@ -1555,7 +1559,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, teamInfo])
 
-  // Auto-alloc price: average of sold prices in this category, rounded UP to increment, min base_price
+  // Auto-alloc price: average of sold prices in this category, rounded to nearest increment, min base_price
   const autoAllocPrice = useMemo(() => {
     if (!selected) return 0
     const cat = selected.category
@@ -1567,7 +1571,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     })
     if (!soldInCat.length) return selected.base_price
     const avg = soldInCat.reduce((sum, s) => sum + Number(s.price), 0) / soldInCat.length
-    return Math.max(selected.base_price, Math.ceil(avg / catInc) * catInc)
+    return Math.max(selected.base_price, roundToNearest(avg, catInc))
   }, [selected, sales, s6Players])
 
   // Running averages per category (rounded to nearest increment)
