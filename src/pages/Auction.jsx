@@ -556,11 +556,13 @@ function SetupTab() {
 // ─── CategoriesTab ────────────────────────────────────────────────────────────
 
 // Hardcoded palette — CSS variables are not reliable inside html-to-image canvas
-const BG       = '#0f1117'
-const SURFACE  = '#1a1d27'
-const BORDER   = '#2a2d3a'
-const MUTED    = '#6b7280'
-const HEADING  = '#f3f4f6'
+const BG       = '#060608'
+const SURFACE  = '#0e0e10'
+const BORDER   = 'rgba(255,255,255,0.07)'
+const MUTED    = 'rgba(250,250,250,0.52)'
+const HEADING  = '#f5f5f5'
+const ACCENT   = '#4d8eff'
+const GOLD     = '#FFC940'
 
 const CAT_PALETTE = {
   A: { bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.35)',  text: '#93c5fd',  label: '#bfdbfe' },
@@ -605,6 +607,41 @@ function readableTeamColor(hex) {
     }
     return '#9ca3af'
   } catch { return hex }
+}
+
+function teamLogoSrc(teamName) {
+  return `/team-logos/${teamName.toLowerCase().replace(/\s+/g, '-')}.png`
+}
+
+// White circular logo container — logos have light backgrounds, looks intentional on dark theme
+function TeamLogo({ teamName, size = 40 }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
+  )
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(255,255,255,0.95)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: Math.round(size * 0.1), boxSizing: 'border-box', overflow: 'hidden' }}>
+      <img
+        src={teamLogoSrc(teamName)}
+        alt={teamName}
+        onError={() => setFailed(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+      />
+    </div>
+  )
+}
+
+// Inline (non-state) logo for export-safe contexts (toPng can't wait for state updates)
+function TeamLogoInline({ teamName, size = 40 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(255,255,255,0.95)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: Math.round(size * 0.1), boxSizing: 'border-box', overflow: 'hidden' }}>
+      <img
+        src={teamLogoSrc(teamName)}
+        alt={teamName}
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+      />
+    </div>
+  )
 }
 
 function CategoryColumn({ category, players }) {
@@ -798,12 +835,17 @@ function CategoriesTab() {
                       position: 'relative',
                     }}
                   >
-                    <span style={{ position: 'absolute', top: 7, right: 9, fontSize: 13, lineHeight: 1 }}>👑</span>
-                    <div style={{ color: fg, fontSize: 14, fontWeight: 700, paddingRight: 22, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                      {card.captainName}
-                    </div>
-                    <div style={{ color: fg, fontSize: 11, opacity: 0.72, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {card.teamName}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <TeamLogoInline teamName={card.teamName} size={32} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: fg, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                          {card.captainName}
+                        </div>
+                        <div style={{ color: fg, fontSize: 11, opacity: 0.72, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {card.teamName}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 13, flexShrink: 0 }}>👑</span>
                     </div>
                   </div>
                 )
@@ -882,31 +924,31 @@ const KNOCKOUTS = [
 
 function MatchRow({ match, format }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 16px', borderBottom: `1px solid ${BORDER}` }}>
-      <span style={{ color: MUTED, fontSize: 12, fontVariantNumeric: 'tabular-nums', minWidth: 100, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: `1px solid ${BORDER}` }}>
+      <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontSize: 13, fontVariantNumeric: 'tabular-nums', minWidth: 110, flexShrink: 0 }}>
         {match.start} – {match.end}
       </span>
-      <span style={{ color: HEADING, fontSize: 14, fontWeight: 700, letterSpacing: '0.04em', flex: 1 }}>
+      <span style={{ color: HEADING, fontSize: 15, fontWeight: 700, letterSpacing: '0.04em', flex: 1 }}>
         {match.teamA} <span style={{ color: MUTED, fontWeight: 400 }}>vs</span> {match.teamB}
       </span>
-      <span style={{ color: MUTED, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
+      <span style={{ color: MUTED, fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', flexShrink: 0 }}>
         {format}
       </span>
     </div>
   )
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, accent = false }) {
   return (
-    <p style={{ color: MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 0', padding: '8px 16px 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
-      <span style={{ color: '#4d8eff' }}>•</span> {children}
+    <p style={{ color: accent ? GOLD : MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, padding: '10px 16px 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ color: accent ? GOLD : ACCENT, fontSize: 9 }}>•</span> {children}
     </p>
   )
 }
 
 function Divider({ label }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 16px', background: 'rgba(255,255,255,0.03)', borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', background: 'rgba(255,255,255,0.025)', borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
       <span style={{ color: MUTED, fontSize: 11, fontStyle: 'italic' }}>{label}</span>
     </div>
   )
@@ -954,21 +996,15 @@ function ScheduleTab() {
 
         {/* Group Stage */}
         <div>
-          <h2 style={{ color: HEADING, fontSize: 15, fontWeight: 700, margin: '0 0 12px', letterSpacing: '0.03em' }}>
-            Group Stage
-          </h2>
-
-          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
-            {/* 8-over morning block */}
+          <p style={{ color: GOLD, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ color: GOLD, fontSize: 9 }}>•</span> Group Stage
+          </p>
+          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', background: SURFACE }}>
             <SectionLabel>8-over matches · morning</SectionLabel>
             {GROUP_STAGE_8_OVER.map((m, i) => (
               <MatchRow key={i} match={m} format="8-over" />
             ))}
-
-            {/* Lunch break */}
             <Divider label="30 mins lunch break" />
-
-            {/* 4-over afternoon block */}
             <SectionLabel>4-over matches · afternoon</SectionLabel>
             {GROUP_STAGE_4_OVER.map((m, i) => (
               <MatchRow key={i} match={m} format="4-over" />
@@ -976,7 +1012,7 @@ function ScheduleTab() {
           </div>
         </div>
 
-        {/* 15-min break divider */}
+        {/* Break */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1, height: 1, background: BORDER }} />
           <span style={{ color: MUTED, fontSize: 11, fontStyle: 'italic', whiteSpace: 'nowrap' }}>15 mins break before playoffs</span>
@@ -985,39 +1021,39 @@ function ScheduleTab() {
 
         {/* Knockouts */}
         <div>
-          <h2 style={{ color: HEADING, fontSize: 15, fontWeight: 700, margin: '0 0 12px', letterSpacing: '0.03em' }}>
-            Knockouts
-          </h2>
+          <p style={{ color: GOLD, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ color: GOLD, fontSize: 9 }}>•</span> Knockouts
+          </p>
           <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
             {/* Match list */}
-            <div style={{ flex: '0 0 55%', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ flex: '0 0 55%', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', background: SURFACE }}>
               {KNOCKOUTS.map((k, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < KNOCKOUTS.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
-                  <span style={{ color: MUTED, fontSize: 12, fontVariantNumeric: 'tabular-nums', minWidth: 100, flexShrink: 0 }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: i < KNOCKOUTS.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+                  <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontSize: 13, fontVariantNumeric: 'tabular-nums', minWidth: 110, flexShrink: 0 }}>
                     {k.start} – {k.end}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: HEADING, fontSize: 14, fontWeight: 700 }}>{k.name}</div>
                     <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>{k.desc}</div>
                   </div>
-                  <span style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>{k.format}</span>
+                  <span style={{ color: MUTED, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>{k.format}</span>
                 </div>
               ))}
             </div>
 
             {/* Qualification rules */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p style={{ color: MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>
-                <span style={{ color: '#4d8eff' }}>•</span> Qualification rules
+              <p style={{ color: MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ color: ACCENT, fontSize: 9 }}>•</span> Qualification rules
               </p>
               {[
-                { label: 'Q1', rule: 'Top 2 teams play. Winner goes straight to the Final.' },
-                { label: 'Elim', rule: '3rd and 4th play. Loser is eliminated.' },
-                { label: 'Q2', rule: 'Loser of Q1 vs Winner of Elim. Winner goes to the Final.' },
+                { label: 'Q1',    rule: 'Top 2 teams play. Winner goes straight to the Final.' },
+                { label: 'Elim',  rule: '3rd and 4th play. Loser is eliminated.' },
+                { label: 'Q2',    rule: 'Loser of Q1 vs Winner of Elim. Winner goes to the Final.' },
                 { label: 'Final', rule: 'Winner of Q1 vs Winner of Q2.' },
               ].map(({ label, rule }) => (
                 <div key={label} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ color: '#4d8eff', fontSize: 11, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>{label}</span>
+                  <span style={{ color: ACCENT, fontSize: 11, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>{label}</span>
                   <span style={{ color: MUTED, fontSize: 12, lineHeight: 1.5 }}>{rule}</span>
                 </div>
               ))}
@@ -1150,16 +1186,16 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
       {/* Name + pills */}
       <div>
         <h2 style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{player.name}</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {player.is_debut && (
-            <span style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.45)', borderRadius: 20, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>
+            <span style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.45)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 600 }}>
               Debut
             </span>
           )}
           {(tags || []).map(tag => {
             const tp = tagPalette(tag)
             return (
-              <span key={tag} style={{ background: tp.bg, color: tp.color, borderRadius: 20, padding: '2px 10px', fontSize: 10, fontWeight: 600, letterSpacing: '0.02em' }}>
+              <span key={tag} style={{ background: tp.bg, color: tp.color, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 600, letterSpacing: '0.02em' }}>
                 · {tag}
               </span>
             )
@@ -1216,13 +1252,15 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
   const teamById = Object.fromEntries(teamInfo.map(t => [t.id, t]))
   return (
     <div className="themed-card" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ background: pal.bg, borderBottom: `1px solid ${pal.border}`, padding: '10px 14px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ color: pal.label, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <div style={{ background: pal.bg, borderBottom: `1px solid ${pal.border}`, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ color: pal.label, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1 }}>
           Category {category}
         </span>
-        <span style={{ color: pal.text, fontSize: 12 }}>({left} / {players.length} left)</span>
+        <span style={{ color: pal.label, background: 'transparent', border: `1px solid ${pal.border.replace('0.35', '0.6')}`, borderRadius: 20, padding: '2px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          {left} / {players.length} LEFT
+        </span>
       </div>
-      <div style={{ padding: '4px 0', overflowY: 'auto', maxHeight: 400 }}>
+      <div style={{ padding: '6px 0', overflowY: 'auto', maxHeight: 500 }}>
         {players.map(p => {
           const isSold = soldIds.has(p.id)
           const isActive = p.id === activeId
@@ -1230,23 +1268,25 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
           const saleTeam = sale ? teamById[sale.s6_team_id] : null
           return (
             <div key={p.id} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '3px 12px',
-              background: isActive ? pal.bg : 'transparent',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 14px',
+              background: isActive ? 'rgba(255,200,64,0.07)' : 'transparent',
+              borderLeft: isActive ? '3px solid #FFC940' : '3px solid transparent',
             }}>
               <span style={{
-                color: isSold ? '#6b7280' : isActive ? pal.label : 'var(--color-heading)',
-                fontSize: 12, textDecoration: isSold ? 'line-through' : 'none',
+                color: isSold ? 'var(--color-text)' : isActive ? '#FFC940' : 'var(--color-heading)',
+                fontSize: 18, fontWeight: isActive ? 700 : 500,
+                textDecoration: isSold ? 'line-through' : 'none',
                 flex: 1, minWidth: 0,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {p.name}
               </span>
               {isActive && !isSold && (
-                <span style={{ color: '#a3e635', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0 }}>● on block</span>
+                <span style={{ color: '#FFC940', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0 }}>● Ongoing</span>
               )}
               {isSold && saleTeam && (
-                <span style={{ color: '#9ca3af', fontSize: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                <span style={{ color: 'var(--color-text)', fontSize: 11, flexShrink: 0, whiteSpace: 'nowrap' }}>
                   → {saleTeam.name} · {Number(sale.price).toLocaleString()}
                 </span>
               )}
@@ -2227,7 +2267,12 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
                   position: 'relative',
                 }}
               >
-                {team.name}
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span style={{ width: 24, height: 24, borderRadius: 5, background: 'rgba(255,255,255,0.9)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, boxSizing: 'border-box', flexShrink: 0, overflow: 'hidden' }}>
+                    <img src={teamLogoSrc(team.name)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.target.parentElement.style.display = 'none' }} />
+                  </span>
+                  {team.name}
+                </span>
                 {selected && !catOk && !autoAllocMode && (
                   <span style={{ position: 'absolute', bottom: 4, left: 0, right: 0, fontSize: 9, color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontWeight: 400 }}>Cat full</span>
                 )}
@@ -2405,8 +2450,8 @@ function TeamCard({ team, isPulsing }) {
       }}
     >
       {/* Header strip */}
-      <div style={{ background: team.color, minHeight: 60, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+      <div style={{ background: team.color, minHeight: 64, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
+        <TeamLogo teamName={team.name} size={48} />
         <h3 style={{ color: captainTextColor(team.color), fontSize: 16, fontWeight: 800, margin: 0, letterSpacing: '0.02em', lineHeight: 1.2 }}>
           {team.name}
         </h3>
@@ -2588,8 +2633,8 @@ export function FinalTeamListView() {
             return (
               <div key={team.id} className="themed-card" style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
                 {/* Header */}
-                <div style={{ background: team.color, minHeight: 52, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                <div style={{ background: team.color, minHeight: 56, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px' }}>
+                  <TeamLogoInline teamName={team.name} size={40} />
                   <h3 style={{ color: captainTextColor(team.color), fontSize: 14, fontWeight: 800, margin: 0, letterSpacing: '0.02em' }}>
                     {team.name}
                   </h3>
