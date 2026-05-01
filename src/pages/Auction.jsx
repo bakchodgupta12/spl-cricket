@@ -1619,10 +1619,13 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     const salePayload = { s6_player_id: selected.id, s6_team_id: highBidder, price: currentBid }
     setSales(prev => [...prev, { id: tempId, ...salePayload, voided: false, sold_at: new Date().toISOString() }])
     const captured = { playerName: selected.name, teamName: team.name, price: currentBid, teamColor: team.color }
+    triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
     clearPlayer()
     const { data, error: insertErr } = await supabase.from('auction_sales').insert(salePayload).select().single()
     if (insertErr) {
       setSales(prev => prev.filter(s => s.id !== tempId))
+      setSoldOverlay(null)
+      setSearchBarVisible(true)
       setSelling(false)
       toast('Sale failed — please retry')
       return
@@ -1630,7 +1633,6 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     setSales(prev => prev.map(s => s.id === tempId ? data : s))
     setLastSale({ saleId: data.id, ...captured })
     setSelling(false)
-    triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
   }
 
   async function handleUndo() {
@@ -1678,17 +1680,19 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     setSales(prev => [...prev, { id: tempId, ...salePayload, voided: false, sold_at: new Date().toISOString() }])
     const captured = { playerName: selected.name, teamName: autoAllocTeam.name, price, teamColor: autoAllocTeam.color }
     setForceAllowTeamId(null)
+    triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
     clearPlayer()
     const { data, error: insertErr } = await supabase.from('auction_sales').insert(salePayload).select().single()
     if (insertErr) {
       setSales(prev => prev.filter(s => s.id !== tempId))
+      setSoldOverlay(null)
+      setSearchBarVisible(true)
       setSelling(false)
       toast('Auto-alloc failed — please retry')
       return
     }
     setSales(prev => prev.map(s => s.id === tempId ? data : s))
     setSelling(false)
-    triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
   }
 
   async function handleRandomAlloc() {
@@ -1707,16 +1711,18 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     setShowRandomAlloc(false)
     setRandomAllocPlayer('')
     setRandomAllocTeam('')
+    triggerCelebration(player.name, team.name, price, team.color)
     const { data, error: insertErr } = await supabase.from('auction_sales').insert(salePayload).select().single()
     if (insertErr) {
       setSales(prev => prev.filter(s => s.id !== tempId))
+      setSoldOverlay(null)
+      setSearchBarVisible(true)
       setSelling(false)
       toast('Random alloc failed — please retry')
       return
     }
     setSales(prev => prev.map(s => s.id === tempId ? data : s))
     setSelling(false)
-    triggerCelebration(player.name, team.name, price, team.color)
   }
 
   // ── derived state ──────────────────────────────────────────────────────────
@@ -2094,10 +2100,13 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
                   const salePayload = { s6_player_id: selected.id, s6_team_id: highBidder, price: currentBid }
                   setSales(prev => [...prev, { id: tempId, ...salePayload, voided: false, sold_at: new Date().toISOString() }])
                   const captured = { playerName: selected.name, teamName: team.name, price: currentBid, teamColor: team.color }
+                  triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
                   clearPlayer()
                   const { data, error: insertErr } = await supabase.from('auction_sales').insert(salePayload).select().single()
                   if (insertErr) {
                     setSales(prev => prev.filter(s => s.id !== tempId))
+                    setSoldOverlay(null)
+                    setSearchBarVisible(true)
                     setSelling(false)
                     toast('Sale failed — please retry')
                     return
@@ -2105,7 +2114,6 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
                   setSales(prev => prev.map(s => s.id === tempId ? data : s))
                   setLastSale({ saleId: data.id, ...captured })
                   setSelling(false)
-                  triggerCelebration(captured.playerName, captured.teamName, captured.price, captured.teamColor)
                 }}
                 style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
@@ -2185,7 +2193,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
       })()}
 
       {/* ── IDLE STATE ────────────────────────────────────────────────────── */}
-      {!selected && (
+      {!selected && !soldOverlay && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: '42vh', paddingTop: 48, paddingBottom: 24, gap: 20 }}>
           {available.length === 0 ? (
             <p style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700 }}>🎉 All players auctioned!</p>
