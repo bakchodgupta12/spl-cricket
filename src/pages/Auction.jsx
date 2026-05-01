@@ -1852,16 +1852,6 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, teamInfo])
 
-  // Auto-alloc price: uses catAverages (which respects overrides), min base_price
-  const autoAllocPrice = useMemo(() => {
-    if (!selected) return 0
-    const cat = selected.category
-    const catInc = BID_INCREMENT[cat]
-    const avg = catAverages[cat]
-    if (avg === null) return selected.base_price
-    return Math.max(selected.base_price, roundToNearest(avg, catInc))
-  }, [selected, catAverages, s6Players]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Running averages per category (rounded to nearest increment), overrideable
   const catAverages = useMemo(() => {
     const r = {}
@@ -1879,6 +1869,16 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     }
     return r
   }, [sales, s6Players, avgOverrides])
+
+  // Auto-alloc price: uses catAverages (which respects overrides), min base_price
+  const autoAllocPrice = useMemo(() => {
+    if (!selected) return 0
+    const cat = selected.category
+    const catInc = BID_INCREMENT[cat]
+    const avg = catAverages[cat]
+    if (avg === null) return selected.base_price
+    return Math.max(selected.base_price, roundToNearest(avg, catInc))
+  }, [selected, catAverages, s6Players]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const allTeamsBroke = selected && !autoAllocMode && teamInfo.length > 0 &&
     teamInfo.every(t => t.id === highBidder || !teamCatEligible(t, selected.category) || t.remaining < nextBidPrice)
