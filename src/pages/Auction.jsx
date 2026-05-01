@@ -772,7 +772,7 @@ function CategoriesTab() {
               Superball Premier League — Season 6 Players List
             </h1>
             <p style={{ color: MUTED, fontSize: 13, marginTop: 14, marginBottom: 0 }}>
-              Auction date: 2nd May, 9 PM (Bangkok time)
+              Auction date: 1st May, 9:30 PM (Bangkok time)
             </p>
           </div>
         </div>
