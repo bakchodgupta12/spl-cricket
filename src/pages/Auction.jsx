@@ -1234,7 +1234,7 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
           </div>
 
           {!statsLoading && stats?.times_captained > 0 && (
-            <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#93c5fd', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '3px 12px', fontSize: 10, color: '#93c5fd', display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <span>👑 Captained {stats.times_captained}</span>
               <span>Win% {fmtNum(stats.capt_win_pct_num, 1)}</span>
               <span>{stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}</span>
