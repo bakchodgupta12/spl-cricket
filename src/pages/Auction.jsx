@@ -1212,10 +1212,16 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
         <>
           {/* Captaincy strip — compact secondary row above stat blocks */}
           {!statsLoading && stats?.times_captained > 0 && (
-            <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '3px 12px', fontSize: 10, color: '#93c5fd', display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span>👑 Captained {stats.times_captained}</span>
-              <span>Win% {fmtNum(stats.capt_win_pct_num, 1)}</span>
-              <span>{stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ background: 'rgba(59,130,246,0.12)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 600 }}>
+                👑 Captained {stats.times_captained}
+              </span>
+              <span style={{ background: 'rgba(59,130,246,0.12)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 600 }}>
+                Win% {fmtNum(stats.capt_win_pct_num, 1)}
+              </span>
+              <span style={{ background: 'rgba(59,130,246,0.12)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 600 }}>
+                {stats.final_appearances} final{stats.final_appearances !== 1 ? 's' : ''}
+              </span>
             </div>
           )}
 
@@ -1252,7 +1258,7 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
   const left = players.filter(p => !soldIds.has(p.id)).length
   const teamById = Object.fromEntries(teamInfo.map(t => [t.id, t]))
   return (
-    <div className="themed-card" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)', borderRadius: 12, overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
+    <div className="themed-card" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)', borderRadius: 12, overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ background: pal.bg, borderBottom: `1px solid ${pal.border}`, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <span style={{ color: pal.label, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1 }}>
           Category {category}
@@ -1261,7 +1267,7 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
           {left} / {players.length} LEFT
         </span>
       </div>
-      <div style={{ padding: '6px 0', overflowY: 'auto', flex: 1, scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
+      <div style={{ padding: '6px 0', overflowY: 'auto', flex: 1, minHeight: 0, scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
         {players.map(p => {
           const isSold = soldIds.has(p.id)
           const isActive = p.id === activeId
@@ -1333,9 +1339,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   // ── celebration overlay ───────────────────────────────────────────────────
   const [soldOverlay,    setSoldOverlay]    = useState(null)
   const [searchBarVisible, setSearchBarVisible] = useState(true)
-  const celebrationReadyRef = useRef(false)
-  const celebrationTimerRef = useRef(null)
-  const soldOverlayRef      = useRef(null)
+  const soldOverlayRef = useRef(null)
 
   // ── manual bid ────────────────────────────────────────────────────────────
   const [showManualBid,  setShowManualBid]  = useState(false)
@@ -1489,14 +1493,12 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
     function onKey(e) {
       const tag = document.activeElement?.tagName
       const inInput = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
-      if (e.key === '/' || e.key === 'Escape') {
-        if (soldOverlayRef.current) {
-          if (celebrationReadyRef.current) {
-            e.preventDefault()
-            dismissOverlay()
-          }
-          return
+      if (soldOverlayRef.current) {
+        if (e.key === '/' || e.key === 'Escape') {
+          e.preventDefault()
+          dismissOverlay()
         }
+        return
       }
       if (e.key === '/') {
         if (inInput) return
@@ -1593,14 +1595,10 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   function triggerCelebration(playerName, teamName, price, teamColor) {
     setSearchBarVisible(false)
     setSoldOverlay({ playerName, teamName, price, teamColor })
-    celebrationReadyRef.current = false
-    clearTimeout(celebrationTimerRef.current)
-    celebrationTimerRef.current = setTimeout(() => { celebrationReadyRef.current = true }, 2500)
     confetti({ particleCount: 180, spread: 90, origin: { y: 0.45 }, colors: [teamColor || '#3b82f6', '#f59e0b', '#fff', '#34d399'], disableForReducedMotion: true })
   }
 
   function dismissOverlay() {
-    clearTimeout(celebrationTimerRef.current)
     setSoldOverlay(null)
     setSearchBarVisible(true)
     setTimeout(() => searchRef.current?.focus(), 80)
@@ -1911,7 +1909,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
           searchBarVisible so it cannot leak through the overlay regardless of z-index. */}
       {soldOverlay && createPortal(
         <div
-          onClick={() => { if (celebrationReadyRef.current) dismissOverlay() }}
+          onClick={dismissOverlay}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'pointer', animation: 'fadeIn 0.15s ease' }}
           data-sold-overlay="1"
         >
@@ -2291,7 +2289,7 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
             <div style={{ flex: '0 0 60%', minWidth: 0, animation: 'slideUp 0.2s ease both' }}>
               <PlayerStatCard player={selected} stats={stats} statsLoading={statsLoading} tags={selected.mapped_player_id && statTags ? (statTags[selected.mapped_player_id] ?? []) : []} />
             </div>
-            <div style={{ flex: '0 0 40%', minWidth: 0, animation: 'slideUp 0.2s ease 0.06s both', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: '0 0 40%', minWidth: 0, minHeight: 0, animation: 'slideUp 0.2s ease 0.06s both', display: 'flex', flexDirection: 'column' }}>
               <CategoryRosterPanel category={selected.category} players={categoryRoster} activeId={selected.id} soldIds={soldIds} salesMap={salesBySixPlayer} teamInfo={teamInfo} />
             </div>
           </div>
