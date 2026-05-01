@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import ThemeToggle from '../components/ThemeToggle'
 import { supabase } from '../lib/supabase'
 import { toPng } from 'html-to-image'
 import confetti from 'canvas-confetti'
@@ -11,7 +10,7 @@ import { ballsToOvers, fmtNum, fmtHalf, computePlayerStats } from '../lib/cricke
 
 const PASSCODE = import.meta.env.VITE_AUCTION_PASSCODE ?? 'spl2026'
 const SESSION_KEY = 'spl_auction_auth'
-const TABS = ['Setup', 'Categories', 'Live Auction', 'Team Dashboard', 'Final Team List']
+const TABS = ['Setup', 'Categories', 'Live Auction', 'Team Dashboard', 'Final Team List', 'Schedule']
 const CATEGORIES = ['A', 'B', 'C', 'D']
 const CATEGORY_IDEAL = 12
 
@@ -858,6 +857,190 @@ function CategoriesTab() {
   )
 }
 
+// ─── ScheduleTab ──────────────────────────────────────────────────────────────
+
+const GROUP_STAGE_8_OVER = [
+  { teamA: 'C', teamB: 'A', start: '08:30', end: '09:20' },
+  { teamA: 'E', teamB: 'B', start: '09:25', end: '10:15' },
+  { teamA: 'D', teamB: 'A', start: '10:20', end: '11:10' },
+  { teamA: 'C', teamB: 'E', start: '11:15', end: '12:05' },
+  { teamA: 'B', teamB: 'D', start: '12:10', end: '13:00' },
+]
+const GROUP_STAGE_4_OVER = [
+  { teamA: 'A', teamB: 'E', start: '13:30', end: '13:55' },
+  { teamA: 'C', teamB: 'D', start: '14:00', end: '14:25' },
+  { teamA: 'A', teamB: 'B', start: '14:30', end: '14:55' },
+  { teamA: 'B', teamB: 'C', start: '15:00', end: '15:25' },
+  { teamA: 'D', teamB: 'E', start: '15:30', end: '15:55' },
+]
+const KNOCKOUTS = [
+  { name: 'Qualifier 1',  start: '16:10', end: '17:10', format: '8-over', desc: 'Top 2 from group stage' },
+  { name: 'Eliminator 1', start: '17:15', end: '18:15', format: '8-over', desc: '3rd vs 4th from group stage' },
+  { name: 'Qualifier 2',  start: '18:20', end: '19:20', format: '8-over', desc: 'Loser Q1 vs Winner Elim 1' },
+  { name: 'Final',        start: '19:25', end: '20:25', format: '8-over', desc: 'Winner Q1 vs Winner Q2' },
+]
+
+function MatchRow({ match, format }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 16px', borderBottom: `1px solid ${BORDER}` }}>
+      <span style={{ color: MUTED, fontSize: 12, fontVariantNumeric: 'tabular-nums', minWidth: 100, flexShrink: 0 }}>
+        {match.start} – {match.end}
+      </span>
+      <span style={{ color: HEADING, fontSize: 14, fontWeight: 700, letterSpacing: '0.04em', flex: 1 }}>
+        {match.teamA} <span style={{ color: MUTED, fontWeight: 400 }}>vs</span> {match.teamB}
+      </span>
+      <span style={{ color: MUTED, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
+        {format}
+      </span>
+    </div>
+  )
+}
+
+function SectionLabel({ children }) {
+  return (
+    <p style={{ color: MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 0', padding: '8px 16px 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ color: '#4d8eff' }}>•</span> {children}
+    </p>
+  )
+}
+
+function Divider({ label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 16px', background: 'rgba(255,255,255,0.03)', borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }}>
+      <span style={{ color: MUTED, fontSize: 11, fontStyle: 'italic' }}>{label}</span>
+    </div>
+  )
+}
+
+function ScheduleTab() {
+  const captureRef = useRef(null)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    if (!captureRef.current || exporting) return
+    setExporting(true)
+    try {
+      const dataUrl = await toPng(captureRef.current, { pixelRatio: 2, backgroundColor: BG, skipFonts: false })
+      const a = document.createElement('a')
+      a.download = 'spl-s6-schedule.png'
+      a.href = dataUrl
+      a.click()
+    } catch (err) {
+      console.error('schedule export failed', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Capture area */}
+      <div ref={captureRef} style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <img src="/spl-logo.svg" alt="SPL" style={{ height: 64, width: 'auto', flexShrink: 0 }} />
+          <div>
+            <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
+              Superball Premier League — Season 6 Schedule
+            </h1>
+            <p style={{ color: MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+              Tournament Date: June 13th, 2026
+            </p>
+          </div>
+        </div>
+
+        <div style={{ height: 1, background: BORDER }} />
+
+        {/* Group Stage */}
+        <div>
+          <h2 style={{ color: HEADING, fontSize: 15, fontWeight: 700, margin: '0 0 12px', letterSpacing: '0.03em' }}>
+            Group Stage
+          </h2>
+
+          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+            {/* 8-over morning block */}
+            <SectionLabel>8-over matches · morning</SectionLabel>
+            {GROUP_STAGE_8_OVER.map((m, i) => (
+              <MatchRow key={i} match={m} format="8-over" />
+            ))}
+
+            {/* Lunch break */}
+            <Divider label="30 mins lunch break" />
+
+            {/* 4-over afternoon block */}
+            <SectionLabel>4-over matches · afternoon</SectionLabel>
+            {GROUP_STAGE_4_OVER.map((m, i) => (
+              <MatchRow key={i} match={m} format="4-over" />
+            ))}
+          </div>
+        </div>
+
+        {/* 15-min break divider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, height: 1, background: BORDER }} />
+          <span style={{ color: MUTED, fontSize: 11, fontStyle: 'italic', whiteSpace: 'nowrap' }}>15 mins break before playoffs</span>
+          <div style={{ flex: 1, height: 1, background: BORDER }} />
+        </div>
+
+        {/* Knockouts */}
+        <div>
+          <h2 style={{ color: HEADING, fontSize: 15, fontWeight: 700, margin: '0 0 12px', letterSpacing: '0.03em' }}>
+            Knockouts
+          </h2>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+            {/* Match list */}
+            <div style={{ flex: '0 0 55%', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+              {KNOCKOUTS.map((k, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < KNOCKOUTS.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+                  <span style={{ color: MUTED, fontSize: 12, fontVariantNumeric: 'tabular-nums', minWidth: 100, flexShrink: 0 }}>
+                    {k.start} – {k.end}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: HEADING, fontSize: 14, fontWeight: 700 }}>{k.name}</div>
+                    <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>{k.desc}</div>
+                  </div>
+                  <span style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>{k.format}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Qualification rules */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ color: MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>
+                <span style={{ color: '#4d8eff' }}>•</span> Qualification rules
+              </p>
+              {[
+                { label: 'Q1', rule: 'Top 2 teams play. Winner goes straight to the Final.' },
+                { label: 'Elim', rule: '3rd and 4th play. Loser is eliminated.' },
+                { label: 'Q2', rule: 'Loser of Q1 vs Winner of Elim. Winner goes to the Final.' },
+                { label: 'Final', rule: 'Winner of Q1 vs Winner of Q2.' },
+              ].map(({ label, rule }) => (
+                <div key={label} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ color: '#4d8eff', fontSize: 11, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>{label}</span>
+                  <span style={{ color: MUTED, fontSize: 12, lineHeight: 1.5 }}>{rule}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Export button */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          style={{ background: exporting ? SURFACE : '#4d8eff', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+        >
+          {exporting ? 'Exporting…' : '↓ Export PNG'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── LiveAuctionTab ───────────────────────────────────────────────────────────
 
 const MAX_SLOTS = 8
@@ -878,18 +1061,18 @@ const roundToNearest = (avg, inc) => Math.floor((avg + inc / 2) / inc) * inc
 // Compact stat display for the player card
 function LiveStatRow({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0' }}>
       <span style={{ color: 'var(--color-text)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
       <span style={{ color: 'var(--color-heading)', fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
     </div>
   )
 }
 
-function LiveStatBlock({ title, rows, emptyMsg, icon }) {
+function LiveStatBlock({ title, rows, emptyMsg }) {
   return (
     <div className="themed-card" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-card-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
-      <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>
-        {icon && <span style={{ marginRight: 4, fontSize: 11 }}>{icon}</span>}{title}
+      <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ color: 'var(--color-accent)', fontSize: 9 }}>•</span>{title}
       </p>
       {emptyMsg
         ? <p style={{ color: 'var(--color-text)', fontSize: 12, fontStyle: 'italic', margin: 0 }}>{emptyMsg}</p>
@@ -904,7 +1087,7 @@ function LiveStatBlockSkeleton({ rows }) {
     <div className="themed-card" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-card-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
       <div style={{ height: 9, width: 44, background: 'var(--color-border)', borderRadius: 3, marginBottom: 10 }} className="animate-pulse" />
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
           <div style={{ height: 7, width: 38, background: 'var(--color-border)', borderRadius: 3 }} className="animate-pulse" />
           <div style={{ height: 11, width: 26, background: 'var(--color-border)', borderRadius: 3 }} className="animate-pulse" />
         </div>
@@ -976,8 +1159,8 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
           {(tags || []).map(tag => {
             const tp = tagPalette(tag)
             return (
-              <span key={tag} style={{ background: tp.bg, color: tp.color, border: `1px solid ${tp.border}`, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
-                {tag}
+              <span key={tag} style={{ background: tp.bg, color: tp.color, borderRadius: 20, padding: '2px 10px', fontSize: 10, fontWeight: 600, letterSpacing: '0.02em' }}>
+                · {tag}
               </span>
             )
           })}
@@ -1001,15 +1184,15 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
               </>
             ) : !stats ? (
               <>
-                <LiveStatBlock title="Batting"  rows={Array.from({ length: 9 }, () => ({ label: '—', value: '—' }))} icon="🏏" />
-                <LiveStatBlock title="Bowling"  rows={Array.from({ length: 7 }, () => ({ label: '—', value: '—' }))} icon="🎯" />
-                <LiveStatBlock title="Fielding" rows={Array.from({ length: 3 }, () => ({ label: '—', value: '—' }))} icon="🧤" />
+                <LiveStatBlock title="Batting"  rows={Array.from({ length: 9 }, () => ({ label: '—', value: '—' }))} />
+                <LiveStatBlock title="Bowling"  rows={Array.from({ length: 7 }, () => ({ label: '—', value: '—' }))} />
+                <LiveStatBlock title="Fielding" rows={Array.from({ length: 3 }, () => ({ label: '—', value: '—' }))} />
               </>
             ) : (
               <>
-                <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} icon={stats.bat_innings  > 0 ? '🏏' : undefined} />
-                <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} icon={stats.bowl_innings > 0 ? '🎯' : undefined} />
-                <LiveStatBlock title="Fielding" rows={fieldingRows} icon="🧤" />
+                <LiveStatBlock title="Batting"  rows={battingRows}  emptyMsg={stats.bat_innings  === 0 ? 'Did not bat'  : null} />
+                <LiveStatBlock title="Bowling"  rows={bowlingRows}  emptyMsg={stats.bowl_innings === 0 ? 'Did not bowl' : null} />
+                <LiveStatBlock title="Fielding" rows={fieldingRows} />
               </>
             )}
           </div>
@@ -1050,7 +1233,6 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '3px 12px',
               background: isActive ? pal.bg : 'transparent',
-              borderLeft: isActive ? `3px solid ${pal.border.replace('0.35','0.8')}` : '3px solid transparent',
             }}>
               <span style={{
                 color: isSold ? '#6b7280' : isActive ? pal.label : 'var(--color-heading)',
@@ -1060,6 +1242,9 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
               }}>
                 {p.name}
               </span>
+              {isActive && !isSold && (
+                <span style={{ color: '#a3e635', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0 }}>● on block</span>
+              )}
               {isSold && saleTeam && (
                 <span style={{ color: '#9ca3af', fontSize: 10, flexShrink: 0, whiteSpace: 'nowrap' }}>
                   → {saleTeam.name} · {Number(sale.price).toLocaleString()}
@@ -2230,8 +2415,8 @@ function TeamCard({ team, isPulsing }) {
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         {/* Captain row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(255,255,255,0.025)', borderLeft: `3px solid ${team.color}`, borderRadius: '0 6px 6px 0' }}>
-          <span style={{ fontSize: 13 }}>👑</span>
-          <span style={{ color: 'var(--color-heading)', fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 15 }}>👑</span>
+          <span style={{ color: 'var(--color-heading)', fontSize: 18, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {team.captainPlayer?.name ?? <em style={{ color: '#6b7280', fontWeight: 400 }}>No captain</em>}
           </span>
           <span style={{ color: team.color, fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', flexShrink: 0 }}>CAPTAIN</span>
@@ -2245,7 +2430,7 @@ function TeamCard({ team, isPulsing }) {
                 const pal = CAT_PALETTE[player.category]
                 return (
                   <div key={player.saleId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', animation: 'slideUp 0.2s ease both' }}>
-                    <span style={{ color: 'var(--color-heading)', fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: 'var(--color-heading)', fontSize: 16, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {player.name}
                     </span>
                     <span style={{ background: pal.bg, color: pal.label, border: `1px solid ${pal.border}`, borderRadius: 4, padding: '1px 5px', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
@@ -2470,7 +2655,6 @@ export function AuctionTeamsPublic() {
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'soldPulse 2s ease-in-out infinite' }} />
           Live
         </span>
-        <div style={{ marginLeft: 'auto' }}><ThemeToggle /></div>
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 16px' }}>
@@ -2505,9 +2689,9 @@ function AuctionApp() {
     <div style={{ background: 'var(--color-bg)', minHeight: '100dvh' }}>
       <div
         style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}
-        className="px-4 sm:px-6 flex items-center"
+        className="px-4 sm:px-6 overflow-x-auto"
       >
-        <div className="flex gap-1 overflow-x-auto flex-1">
+        <div className="flex gap-1 min-w-max">
           {TABS.map(tab => {
             const active = tab === activeTab
             return (
@@ -2525,9 +2709,6 @@ function AuctionApp() {
             )
           })}
         </div>
-        <div className="pl-4 py-2 flex-shrink-0">
-          <ThemeToggle />
-        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -2542,6 +2723,7 @@ function AuctionApp() {
         )}
         {activeTab === 'Team Dashboard'  && <TeamDashboardView />}
         {activeTab === 'Final Team List' && <FinalTeamListView />}
+        {activeTab === 'Schedule'        && <ScheduleTab />}
       </div>
     </div>
   )
