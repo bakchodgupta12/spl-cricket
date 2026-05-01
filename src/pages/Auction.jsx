@@ -2051,16 +2051,62 @@ function LiveAuctionTab({ selected, setSelected, currentBid, setCurrentBid, high
   )
 }
 
-// ─── TeamDashboardView ────────────────────────────────────────────────────────
+// ─── shared hooks ─────────────────────────────────────────────────────────────
 
-const SHAPE_DETAIL = { X: '1A · 3B · 3C · 1D', Y: '2A · 2B · 2C · 2D' }
+const SHAPE_DETAIL = { X: '1A/3B/3C/1D', Y: '2A/2B/2C/2D' }
 
-export function TeamDashboardView() {
-  const [s6Players, setS6Players] = useState([])
-  const [s6Teams,   setS6Teams]   = useState([])
-  const [sales,     setSales]     = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [error,     setError]     = useState(null)
+// Pure computation: aggregates auction_sales into per-team roster objects
+function useTeamRosters(s6Players, s6Teams, sales) {
+  return useMemo(() => {
+    const base = s6Teams.map(team => {
+      const ts = sales
+        .filter(s => !s.voided && s.s6_team_id === team.id)
+        .sort((a, b) => new Date(a.sold_at) - new Date(b.sold_at))
+      const spent = ts.reduce((sum, s) => sum + Number(s.price), 0)
+      const captainPlayer = s6Players.find(p => p.id === team.captain_s6_player_id) ?? null
+      const catCounts = { A: 0, B: captainPlayer ? 1 : 0, C: 0, D: 0 }
+      for (const sale of ts) {
+        const p = s6Players.find(px => px.id === sale.s6_player_id)
+        if (p) catCounts[p.category] = (catCounts[p.category] || 0) + 1
+      }
+      let lockedShape = null
+      if (catCounts.A >= 2 || catCounts.D >= 2) lockedShape = 'Y'
+      else if (catCounts.B >= 3 || catCounts.C >= 3) lockedShape = 'X'
+      const players = ts
+        .map(sale => {
+          const player = s6Players.find(p => p.id === sale.s6_player_id)
+          return player ? { ...player, salePrice: Number(sale.price), saleId: sale.id } : null
+        })
+        .filter(Boolean)
+      return {
+        ...team, captainPlayer, players, spent,
+        remaining: team.budget_total - spent,
+        catCounts, lockedShape,
+        slotsFilledTotal: (captainPlayer ? 1 : 0) + players.length,
+      }
+    })
+    const lockedY = base.filter(t => t.lockedShape === 'Y').length
+    const lockedX = base.filter(t => t.lockedShape === 'X').length
+    return base.map(t => {
+      let forcedShape = t.lockedShape
+      if (!forcedShape) {
+        if (lockedY >= 3) forcedShape = 'X'
+        else if (lockedX >= 2) forcedShape = 'Y'
+      }
+      return { ...t, forcedShape }
+    })
+  }, [s6Players, s6Teams, sales])
+}
+
+// Loads auction data + wires a realtime subscription; returns live state
+function useAuctionRealtimeData(channelName) {
+  const [s6Players,          setS6Players]          = useState([])
+  const [s6Teams,            setS6Teams]             = useState([])
+  const [sales,              setSales]               = useState([])
+  const [loading,            setLoading]             = useState(true)
+  const [error,              setError]               = useState(null)
+  const [lastUpdatedTeamId,  setLastUpdatedTeamId]   = useState(null)
+  const clearPulseRef = useRef(null)
 
   useEffect(() => {
     async function load() {
@@ -2084,48 +2130,136 @@ export function TeamDashboardView() {
     }
     load()
 
-    const channel = supabase.channel('team-dashboard-sales')
+    function pulse(teamId) {
+      if (!teamId) return
+      setLastUpdatedTeamId(teamId)
+      clearTimeout(clearPulseRef.current)
+      clearPulseRef.current = setTimeout(() => setLastUpdatedTeamId(null), 500)
+    }
+
+    const channel = supabase.channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auction_sales' }, payload => {
         if (payload.eventType === 'INSERT') {
           setSales(prev => [...prev, payload.new])
+          pulse(payload.new.s6_team_id)
         } else if (payload.eventType === 'UPDATE') {
           setSales(prev => prev.map(s => s.id === payload.new.id ? payload.new : s))
+          pulse(payload.new.s6_team_id)
         } else if (payload.eventType === 'DELETE') {
           setSales(prev => prev.filter(s => s.id !== payload.old.id))
         }
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+    return () => {
+      clearTimeout(clearPulseRef.current)
+      supabase.removeChannel(channel)
+    }
+  }, [channelName])
 
-  const teamInfo = useMemo(() => {
-    const base = s6Teams.map(team => {
-      const ts = sales.filter(s => !s.voided && s.s6_team_id === team.id)
-      const spent = ts.reduce((sum, s) => sum + Number(s.price), 0)
-      const catCounts = { A: 0, B: team.captain_s6_player_id ? 1 : 0, C: 0, D: 0 }
-      for (const sale of ts) {
-        const p = s6Players.find(px => px.id === sale.s6_player_id)
-        if (p) catCounts[p.category] = (catCounts[p.category] || 0) + 1
-      }
-      let lockedShape = null
-      if (catCounts.A >= 2 || catCounts.D >= 2) lockedShape = 'Y'
-      else if (catCounts.B >= 3 || catCounts.C >= 3) lockedShape = 'X'
-      return { ...team, spent, remaining: team.budget_total - spent,
-        slotsUsed: ts.length, catCounts, lockedShape,
-        sortedSales: ts.sort((a, b) => new Date(a.sold_at) - new Date(b.sold_at)) }
-    })
-    const lockedY = base.filter(t => t.lockedShape === 'Y').length
-    const lockedX = base.filter(t => t.lockedShape === 'X').length
-    return base.map(t => {
-      let forcedShape = t.lockedShape
-      if (!forcedShape) {
-        if (lockedY >= 3) forcedShape = 'X'
-        else if (lockedX >= 2) forcedShape = 'Y'
-      }
-      return { ...t, forcedShape }
-    })
-  }, [s6Teams, sales, s6Players])
+  return { s6Players, s6Teams, sales, loading, error, lastUpdatedTeamId }
+}
+
+// ─── TeamCard ─────────────────────────────────────────────────────────────────
+
+function TeamCard({ team, isPulsing }) {
+  return (
+    <div style={{
+      background: 'var(--color-surface)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      animation: isPulsing ? 'cardPulse 0.4s ease' : 'none',
+    }}>
+      {/* Header strip */}
+      <div style={{ background: team.color, minHeight: 60, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+        <h3 style={{ color: captainTextColor(team.color), fontSize: 16, fontWeight: 800, margin: 0, letterSpacing: '0.02em', lineHeight: 1.2 }}>
+          {team.name}
+        </h3>
+      </div>
+
+      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+        {/* Captain row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: 'rgba(255,255,255,0.025)', borderLeft: `3px solid ${team.color}`, borderRadius: '0 6px 6px 0' }}>
+          <span style={{ fontSize: 13 }}>👑</span>
+          <span style={{ color: 'var(--color-heading)', fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {team.captainPlayer?.name ?? <em style={{ color: '#6b7280', fontWeight: 400 }}>No captain</em>}
+          </span>
+          <span style={{ color: team.color, fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', flexShrink: 0 }}>CAPTAIN</span>
+        </div>
+
+        {/* Bought players */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+          {team.players.length === 0
+            ? <p style={{ color: '#6b7280', fontSize: 12, fontStyle: 'italic', margin: '2px 0 0' }}>No players bought yet</p>
+            : team.players.map(player => {
+                const pal = CAT_PALETTE[player.category]
+                return (
+                  <div key={player.saleId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', animation: 'slideUp 0.2s ease both' }}>
+                    <span style={{ color: 'var(--color-heading)', fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {player.name}
+                    </span>
+                    <span style={{ background: pal.bg, color: pal.label, border: `1px solid ${pal.border}`, borderRadius: 4, padding: '1px 5px', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                      {player.category}
+                    </span>
+                    <span style={{ color: '#6b7280', fontSize: 11, flexShrink: 0, fontVariantNumeric: 'tabular-nums', minWidth: 38, textAlign: 'right' }}>
+                      {player.salePrice.toLocaleString()}
+                    </span>
+                  </div>
+                )
+              })
+          }
+        </div>
+
+        {/* Slot tracker — 8 segmented boxes */}
+        <div>
+          <span style={{ color: 'var(--color-text)', fontSize: 11, display: 'block', marginBottom: 5 }}>
+            {team.slotsFilledTotal} / {MAX_SLOTS} filled
+          </span>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {Array.from({ length: MAX_SLOTS }).map((_, i) => (
+              <div key={i} style={{ flex: 1, height: 6, borderRadius: 3, background: i < team.slotsFilledTotal ? team.color : 'var(--color-border)', transition: 'background 0.3s ease' }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Shape lock — only when forced/locked */}
+        {team.forcedShape && (
+          <p style={{ color: '#6b7280', fontSize: 10, margin: 0 }}>
+            {team.lockedShape ? 'Locked' : 'Forced'}: Shape {team.forcedShape} · {SHAPE_DETAIL[team.forcedShape]}
+          </p>
+        )}
+
+        {/* Budget */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ color: 'var(--color-text)', fontSize: 11 }}>Remaining</span>
+            {team.remaining < 0 && (
+              <span style={{ background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, padding: '1px 6px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', display: 'inline-block' }}>
+                BUDGET EXCEEDED
+              </span>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: team.remaining < 0 ? '#f87171' : 'var(--color-heading)', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+              {team.remaining.toLocaleString()}
+            </div>
+            <div style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>of {team.budget_total.toLocaleString()}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── TeamDashboardView ────────────────────────────────────────────────────────
+
+export function TeamDashboardView() {
+  const { s6Players, s6Teams, sales, loading, error, lastUpdatedTeamId } = useAuctionRealtimeData('team-dashboard')
+  const rosters = useTeamRosters(s6Players, s6Teams, sales)
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -2135,97 +2269,15 @@ export function TeamDashboardView() {
   if (error) return <p style={{ color: '#f87171' }} className="text-sm">{error}</p>
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-      {teamInfo.map(team => {
-        const captainPlayer = s6Players.find(p => p.id === team.captain_s6_player_id)
-        const slotsFilledTotal = (captainPlayer ? 1 : 0) + team.slotsUsed
-        const headerText = captainTextColor(team.color)
-        const isLocked = !!team.lockedShape
-        const isForced = !team.lockedShape && !!team.forcedShape
-
-        return (
-          <div key={team.id} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            {/* Team header */}
-            <div style={{ background: team.color, padding: '12px 16px' }}>
-              <h3 style={{ color: headerText, fontSize: 15, fontWeight: 800, margin: 0, letterSpacing: '0.02em' }}>{team.name}</h3>
-            </div>
-
-            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-              {/* Captain */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 8, borderBottom: '1px solid var(--color-border)' }}>
-                <span style={{ fontSize: 13 }}>👑</span>
-                <span style={{ color: 'var(--color-heading)', fontSize: 13, fontWeight: 700 }}>
-                  {captainPlayer?.name ?? <span style={{ color: '#6b7280', fontStyle: 'italic' }}>No captain set</span>}
-                </span>
-              </div>
-
-              {/* Purchased players */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-                {team.sortedSales.length === 0 ? (
-                  <p style={{ color: '#6b7280', fontSize: 12, fontStyle: 'italic', margin: 0 }}>No players bought yet</p>
-                ) : team.sortedSales.map(sale => {
-                  const player = s6Players.find(p => p.id === sale.s6_player_id)
-                  const pal = player ? CAT_PALETTE[player.category] : null
-                  return (
-                    <div key={sale.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
-                      {pal && (
-                        <span style={{ background: pal.bg, color: pal.label, border: `1px solid ${pal.border}`, borderRadius: 4, padding: '1px 5px', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                          {player.category}
-                        </span>
-                      )}
-                      <span style={{ color: 'var(--color-heading)', fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {player?.name ?? '—'}
-                      </span>
-                      <span style={{ color: 'var(--color-text)', fontSize: 11, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                        {Number(sale.price).toLocaleString()}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Slot tracker */}
-              <div style={{ marginTop: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: 'var(--color-text)', fontSize: 11 }}>{slotsFilledTotal} / {MAX_SLOTS} slots filled</span>
-                </div>
-                <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(slotsFilledTotal / MAX_SLOTS) * 100}%`, background: team.color, borderRadius: 2, transition: 'width 0.4s ease' }} />
-                </div>
-              </div>
-
-              {/* Budget remaining */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
-                <span style={{ color: 'var(--color-text)', fontSize: 11 }}>Remaining</span>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: team.remaining < 0 ? '#f87171' : 'var(--color-heading)', fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                    {team.remaining.toLocaleString()}
-                  </div>
-                  <div style={{ color: '#6b7280', fontSize: 10, marginTop: 2 }}>of {team.budget_total.toLocaleString()}</div>
-                </div>
-              </div>
-
-              {/* Shape lock */}
-              {team.forcedShape && (
-                <p style={{ color: '#6b7280', fontSize: 10, fontStyle: 'italic', margin: 0 }}>
-                  {isLocked ? 'Locked' : isForced ? 'Forced' : ''}: Shape {team.forcedShape} ({SHAPE_DETAIL[team.forcedShape]})
-                </p>
-              )}
-            </div>
-          </div>
-        )
-      })}
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {rosters.map(team => (
+        <TeamCard key={team.id} team={team} isPulsing={lastUpdatedTeamId === team.id} />
+      ))}
     </div>
   )
 }
 
 // ─── FinalTeamListView ────────────────────────────────────────────────────────
-
-const PNG_BG      = '#0f1117'
-const PNG_SURFACE = '#1a1d27'
-const PNG_BORDER  = '#2a2d3a'
-const PNG_MUTED   = '#6b7280'
-const PNG_HEADING = '#f3f4f6'
 
 export function FinalTeamListView() {
   const [s6Players, setS6Players] = useState([])
@@ -2259,21 +2311,13 @@ export function FinalTeamListView() {
     load()
   }, [])
 
-  const teamRosters = useMemo(() => s6Teams.map(team => {
-    const captainPlayer = s6Players.find(p => p.id === team.captain_s6_player_id)
-    const bought = sales
-      .filter(s => !s.voided && s.s6_team_id === team.id)
-      .sort((a, b) => new Date(a.sold_at) - new Date(b.sold_at))
-      .map(s => s6Players.find(p => p.id === s.s6_player_id))
-      .filter(Boolean)
-    return { ...team, captainPlayer, bought }
-  }), [s6Teams, sales, s6Players])
+  const rosters = useTeamRosters(s6Players, s6Teams, sales)
 
   async function handleExport() {
     if (!captureRef.current || exporting) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(captureRef.current, { pixelRatio: 2, backgroundColor: PNG_BG, skipFonts: false })
+      const dataUrl = await toPng(captureRef.current, { pixelRatio: 2, backgroundColor: BG, skipFonts: false })
       const a = document.createElement('a')
       a.download = 'spl-s6-final-teams.png'
       a.href = dataUrl
@@ -2294,49 +2338,57 @@ export function FinalTeamListView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Capture area */}
-      <div ref={captureRef} style={{ background: PNG_BG, borderRadius: 12, border: `1px solid ${PNG_BORDER}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Capture area — export button is outside */}
+      <div ref={captureRef} style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <img src="/spl-logo.svg" alt="SPL" style={{ height: 64, width: 'auto', flexShrink: 0 }} />
           <div>
-            <h1 style={{ color: PNG_HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
+            <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
               Superball Premier League — Season 6 Final Teams
             </h1>
-            <p style={{ color: PNG_MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+            <p style={{ color: MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
               Auction complete · 2nd May 2026
             </p>
           </div>
         </div>
-        <div style={{ height: 1, background: PNG_BORDER }} />
+        <div style={{ height: 1, background: BORDER }} />
 
-        {/* Team grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-          {teamRosters.map(team => {
-            const headerText = captainTextColor(team.color)
+        {/* Team grid — hardcoded hex for PNG fidelity */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+          {rosters.map(team => {
+            const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
             return (
-              <div key={team.id} style={{ background: PNG_SURFACE, border: `1px solid ${PNG_BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ background: team.color, padding: '10px 14px' }}>
-                  <h3 style={{ color: headerText, fontSize: 14, fontWeight: 800, margin: 0, letterSpacing: '0.02em' }}>{team.name}</h3>
+              <div key={team.id} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ background: team.color, minHeight: 52, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
+                  <h3 style={{ color: captainTextColor(team.color), fontSize: 14, fontWeight: 800, margin: 0, letterSpacing: '0.02em' }}>
+                    {team.name}
+                  </h3>
                 </div>
-                <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {/* Captain */}
-                  {team.captainPlayer && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 6, borderBottom: `1px solid ${PNG_BORDER}`, marginBottom: 2 }}>
-                      <span style={{ fontSize: 12 }}>👑</span>
-                      <span style={{ color: PNG_HEADING, fontSize: 12, fontWeight: 700 }}>{team.captainPlayer.name}</span>
-                    </div>
-                  )}
-                  {/* Players */}
-                  {team.bought.map(player => (
-                    <div key={player.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: PNG_MUTED, fontSize: 10, width: 14, flexShrink: 0, textAlign: 'center' }}>{player.category}</span>
-                      <span style={{ color: PNG_HEADING, fontSize: 12 }}>{player.name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 5, borderBottom: `1px solid ${BORDER}`, marginBottom: 2 }}>
+                    <span style={{ fontSize: 11 }}>👑</span>
+                    <span style={{ color: HEADING, fontSize: 12, fontWeight: 700 }}>
+                      {team.captainPlayer?.name ?? '—'}
+                    </span>
+                  </div>
+                  {/* Bought players */}
+                  {team.players.map(p => (
+                    <div key={p.saleId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: MUTED, fontSize: 10, width: 12, flexShrink: 0 }}>{p.category}</span>
+                      <span style={{ color: HEADING, fontSize: 12 }}>{p.name}</span>
                     </div>
                   ))}
-                  {team.bought.length === 0 && team.captainPlayer == null && (
-                    <p style={{ color: PNG_MUTED, fontSize: 11, fontStyle: 'italic', margin: 0 }}>No players</p>
-                  )}
+                  {/* Empty slot placeholders */}
+                  {Array.from({ length: emptySlots }).map((_, i) => (
+                    <div key={`e${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: BORDER, fontSize: 10, width: 12, flexShrink: 0 }}>—</span>
+                      <span style={{ color: BORDER, fontSize: 12 }}>Empty slot</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -2344,7 +2396,7 @@ export function FinalTeamListView() {
         </div>
       </div>
 
-      {/* Export button — outside capture area */}
+      {/* Export button */}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <button
           onClick={handleExport}
@@ -2353,6 +2405,44 @@ export function FinalTeamListView() {
         >
           {exporting ? 'Exporting…' : '↓ Export PNG'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── AuctionTeamsPublic ───────────────────────────────────────────────────────
+// Standalone page — no passcode, no tab nav. Captains open this on phones.
+
+export function AuctionTeamsPublic() {
+  const { s6Players, s6Teams, sales, loading, error, lastUpdatedTeamId } = useAuctionRealtimeData('teams-public')
+  const rosters = useTeamRosters(s6Players, s6Teams, sales)
+
+  return (
+    <div style={{ background: 'var(--color-bg)', minHeight: '100dvh' }}>
+      {/* Minimal header */}
+      <div style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <img src="/spl-logo.svg" alt="SPL" style={{ height: 32, width: 'auto' }} />
+        <span style={{ color: 'var(--color-heading)', fontWeight: 700, fontSize: 15 }}>SPL S6 Auction</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#34d399', fontSize: 12, fontWeight: 600 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'soldPulse 2s ease-in-out infinite' }} />
+          Live
+        </span>
+      </div>
+
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 16px' }}>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <span style={{ color: 'var(--color-text)' }} className="text-sm animate-pulse">Loading…</span>
+          </div>
+        ) : error ? (
+          <p style={{ color: '#f87171' }} className="text-sm">{error}</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {rosters.map(team => (
+              <TeamCard key={team.id} team={team} isPulsing={lastUpdatedTeamId === team.id} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
