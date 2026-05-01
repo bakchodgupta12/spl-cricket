@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import ThemeToggle from '../ThemeToggle'
 
 export default function SiteNav() {
   return (
@@ -22,6 +23,9 @@ export default function SiteNav() {
           SPL Hub
         </span>
       </Link>
+      <div className="ml-auto">
+        <ThemeToggle />
+      </div>
     </nav>
   )
 }
