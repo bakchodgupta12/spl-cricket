@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { createRoot } from 'react-dom/client'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { toPng } from 'html-to-image'
 import confetti from 'canvas-confetti'
@@ -2701,6 +2702,133 @@ export function TeamDashboardView() {
   )
 }
 
+// ─── Export helpers ────────────────────────────────────────────────────────────
+
+function teamSlug(name) {
+  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+}
+
+function TeamCardExportContent({ team }) {
+  const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
+  const fg = captainTextColor(team.color)
+  return (
+    <div style={{ width: 1080, background: BG, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Colour header strip */}
+      <div style={{ background: team.color, padding: '40px 60px 36px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+          <img src="/spl-logo.svg" alt="SPL" style={{ height: 36, width: 'auto', opacity: 0.85 }} />
+          <span style={{ color: fg, opacity: 0.72, fontSize: 13, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            Superball Premier League — Season 6
+          </span>
+        </div>
+        <TeamLogoInline teamName={team.name} size={140} />
+        <h1 style={{ color: fg, fontSize: 52, fontWeight: 900, margin: 0, letterSpacing: '0.01em', textAlign: 'center', lineHeight: 1.1 }}>
+          {team.name}
+        </h1>
+      </div>
+
+      {/* Player list */}
+      <div style={{ padding: '40px 60px' }}>
+        {/* Captain row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '22px 28px', background: 'rgba(255,200,64,0.07)', border: '1px solid rgba(255,200,64,0.3)', borderRadius: 12, marginBottom: 16 }}>
+          <span style={{ fontSize: 28 }}>👑</span>
+          <span style={{ color: HEADING, fontSize: 32, fontWeight: 800, flex: 1 }}>{team.captainPlayer?.name ?? '—'}</span>
+          <span style={{ color: GOLD, fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Captain</span>
+        </div>
+
+        {/* Bought players */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {team.players.map(p => (
+            <div key={p.saleId} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 28px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10 }}>
+              <span style={{ color: MUTED, fontSize: 14, fontWeight: 700, width: 20, textAlign: 'center', flexShrink: 0 }}>{p.category}</span>
+              <span style={{ color: HEADING, fontSize: 28, fontWeight: 500 }}>{p.name}</span>
+            </div>
+          ))}
+          {Array.from({ length: emptySlots }).map((_, i) => (
+            <div key={`e${i}`} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 28px', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, opacity: 0.35 }}>
+              <span style={{ color: MUTED, fontSize: 14, width: 20, textAlign: 'center', flexShrink: 0 }}>—</span>
+              <span style={{ color: MUTED, fontSize: 28 }}>Empty slot</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: '0 60px 40px', textAlign: 'center' }}>
+        <span style={{ color: MUTED, fontSize: 14 }}>Tournament: June 13th, 2026</span>
+      </div>
+    </div>
+  )
+}
+
+function MobileExportContent({ rosters }) {
+  return (
+    <div style={{ width: 1080, background: BG, fontFamily: 'system-ui, -apple-system, sans-serif', padding: '40px 40px 60px', display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+        <img src="/spl-logo.svg" alt="SPL" style={{ height: 80, width: 'auto', flexShrink: 0 }} />
+        <div>
+          <h1 style={{ color: HEADING, fontSize: 30, fontWeight: 800, margin: 0, lineHeight: 1.2 }}>Superball Premier League</h1>
+          <p style={{ color: MUTED, fontSize: 18, margin: '6px 0 0' }}>Season 6 Team List · June 13th, 2026</p>
+        </div>
+      </div>
+      <div style={{ height: 1, background: BORDER }} />
+
+      {/* Teams stacked vertically */}
+      {rosters.map(team => {
+        const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
+        return (
+          <div key={team.id} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ background: team.color, padding: '18px 28px', display: 'flex', alignItems: 'center', gap: 20 }}>
+              <TeamLogoInline teamName={team.name} size={64} />
+              <h3 style={{ color: captainTextColor(team.color), fontSize: 28, fontWeight: 900, margin: 0 }}>{team.name}</h3>
+            </div>
+            <div style={{ padding: '16px 28px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Captain */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0 12px', borderBottom: `1px solid ${BORDER}`, marginBottom: 6 }}>
+                <span style={{ fontSize: 18 }}>👑</span>
+                <span style={{ color: HEADING, fontSize: 22, fontWeight: 700, flex: 1 }}>{team.captainPlayer?.name ?? '—'}</span>
+                <span style={{ color: MUTED, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Captain</span>
+              </div>
+              {team.players.map(p => (
+                <div key={p.saleId} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ color: MUTED, fontSize: 14, width: 18, flexShrink: 0 }}>{p.category}</span>
+                  <span style={{ color: HEADING, fontSize: 20 }}>{p.name}</span>
+                </div>
+              ))}
+              {Array.from({ length: emptySlots }).map((_, i) => (
+                <div key={`e${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0.35 }}>
+                  <span style={{ color: MUTED, fontSize: 14, width: 18, flexShrink: 0 }}>—</span>
+                  <span style={{ color: MUTED, fontSize: 20 }}>Empty slot</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+async function renderOffscreen(Component, props, filename, pixelRatio = 2) {
+  const container = document.createElement('div')
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;'
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  await new Promise(resolve => { root.render(<Component {...props} />); setTimeout(resolve, 80) })
+  try {
+    const el = container.firstElementChild
+    const dataUrl = await toPng(el, { pixelRatio, backgroundColor: BG, skipFonts: false })
+    const a = document.createElement('a')
+    a.download = filename
+    a.href = dataUrl
+    a.click()
+  } finally {
+    root.unmount()
+    document.body.removeChild(container)
+  }
+}
+
 // ─── FinalTeamListView ────────────────────────────────────────────────────────
 
 export function FinalTeamListView() {
@@ -2710,6 +2838,8 @@ export function FinalTeamListView() {
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
   const [exporting, setExporting] = useState(false)
+  const [exportingMobile, setExportingMobile] = useState(false)
+  const [exportingTeamId, setExportingTeamId] = useState(null)
   const captureRef = useRef(null)
 
   useEffect(() => {
@@ -2741,15 +2871,42 @@ export function FinalTeamListView() {
     if (!captureRef.current || exporting) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(captureRef.current, { pixelRatio: 2, backgroundColor: BG, skipFonts: false })
+      const dataUrl = await toPng(captureRef.current, {
+        pixelRatio: 2, backgroundColor: BG, skipFonts: false,
+        filter: node => !node.dataset?.exportExclude,
+      })
       const a = document.createElement('a')
-      a.download = 'spl-s6-final-teams.png'
+      a.download = 'spl-s6-team-list.png'
       a.href = dataUrl
       a.click()
     } catch (err) {
       console.error('export failed', err)
     } finally {
       setExporting(false)
+    }
+  }
+
+  async function handleMobileExport() {
+    if (exportingMobile) return
+    setExportingMobile(true)
+    try {
+      await renderOffscreen(MobileExportContent, { rosters }, 'spl-s6-team-list-mobile.png', 1)
+    } catch (err) {
+      console.error('mobile export failed', err)
+    } finally {
+      setExportingMobile(false)
+    }
+  }
+
+  async function handleTeamExport(team) {
+    if (exportingTeamId) return
+    setExportingTeamId(team.id)
+    try {
+      await renderOffscreen(TeamCardExportContent, { team }, `spl-s6-${teamSlug(team.name)}.png`, 1)
+    } catch (err) {
+      console.error('team export failed', err)
+    } finally {
+      setExportingTeamId(null)
     }
   }
 
@@ -2762,7 +2919,7 @@ export function FinalTeamListView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Capture area — export button is outside */}
+      {/* Capture area — per-team download buttons have data-export-exclude so they're stripped from PNG */}
       <div ref={captureRef} style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -2778,13 +2935,24 @@ export function FinalTeamListView() {
         </div>
         <div style={{ height: 1, background: BORDER }} />
 
-        {/* Team grid — hardcoded hex for PNG fidelity */}
+        {/* Team grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
           {rosters.map(team => {
             const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
+            const isExportingThis = exportingTeamId === team.id
             return (
-              <div key={team.id} className="themed-card" style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
-                {/* Header */}
+              <div key={team.id} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+                {/* Per-team download button — excluded from PNG via filter */}
+                <button
+                  data-export-exclude="1"
+                  onClick={() => handleTeamExport(team)}
+                  disabled={!!exportingTeamId}
+                  title={`Download ${team.name} share card`}
+                  style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, background: 'rgba(0,0,0,0.45)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: exportingTeamId ? 'default' : 'pointer', opacity: isExportingThis ? 0.5 : 0.85, lineHeight: 1.4 }}
+                >
+                  {isExportingThis ? '…' : '↓'}
+                </button>
+                {/* Card header */}
                 <div style={{ background: team.color, minHeight: 56, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px' }}>
                   <TeamLogoInline teamName={team.name} size={40} />
                   <h3 style={{ color: captainTextColor(team.color), fontSize: 14, fontWeight: 800, margin: 0, letterSpacing: '0.02em' }}>
@@ -2792,7 +2960,7 @@ export function FinalTeamListView() {
                   </h3>
                 </div>
                 <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {/* Captain — consistent layout across all cards */}
+                  {/* Captain */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 5px', borderBottom: `1px solid ${BORDER}`, marginBottom: 2, lineHeight: 1.4 }}>
                     <span style={{ fontSize: 11, flexShrink: 0 }}>👑</span>
                     <span style={{ color: HEADING, fontSize: 12, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2800,14 +2968,12 @@ export function FinalTeamListView() {
                     </span>
                     <span style={{ color: MUTED, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>CAPTAIN</span>
                   </div>
-                  {/* Bought players */}
                   {team.players.map(p => (
                     <div key={p.saleId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: MUTED, fontSize: 10, width: 12, flexShrink: 0 }}>{p.category}</span>
                       <span style={{ color: HEADING, fontSize: 14 }}>{p.name}</span>
                     </div>
                   ))}
-                  {/* Empty slot placeholders */}
                   {Array.from({ length: emptySlots }).map((_, i) => (
                     <div key={`e${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: BORDER, fontSize: 10, width: 12, flexShrink: 0 }}>—</span>
@@ -2821,14 +2987,21 @@ export function FinalTeamListView() {
         </div>
       </div>
 
-      {/* Export button */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+      {/* Export buttons */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
         <button
           onClick={handleExport}
           disabled={exporting}
           style={{ background: exporting ? 'var(--color-surface)' : 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
         >
           {exporting ? 'Exporting…' : '↓ Export PNG'}
+        </button>
+        <button
+          onClick={handleMobileExport}
+          disabled={exportingMobile}
+          style={{ background: exportingMobile ? 'var(--color-surface)' : 'var(--color-surface)', color: exportingMobile ? 'var(--color-text)' : 'var(--color-heading)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: exportingMobile ? 'default' : 'pointer', opacity: exportingMobile ? 0.6 : 1 }}
+        >
+          {exportingMobile ? 'Exporting…' : '↓ Export for Mobile'}
         </button>
       </div>
     </div>
@@ -2875,8 +3048,13 @@ export function AuctionTeamsPublic() {
 
 // ─── AuctionApp ───────────────────────────────────────────────────────────────
 
+const ADMIN_TABS = new Set(['Setup', 'Live Auction'])
+
 function AuctionApp() {
-  const [activeTab,   setActiveTab]   = useState('Setup')
+  const [searchParams] = useSearchParams()
+  const isAdmin = searchParams.get('admin') === 'true'
+  const visibleTabs = TABS.filter(t => !ADMIN_TABS.has(t) || isAdmin)
+  const [activeTab,   setActiveTab]   = useState(() => isAdmin ? 'Setup' : 'Categories')
   // Lifted so Live Auction state survives tab switches
   const [selected,    setSelected]    = useState(null)
   const [currentBid,  setCurrentBid]  = useState(0)
@@ -2889,7 +3067,7 @@ function AuctionApp() {
         className="px-4 sm:px-6 overflow-x-auto"
       >
         <div className="flex gap-1 min-w-max">
-          {TABS.map(tab => {
+          {visibleTabs.map(tab => {
             const active = tab === activeTab
             return (
               <button
