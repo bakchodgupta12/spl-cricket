@@ -30,8 +30,8 @@ function StatRow({ label, value }) {
 function StatBlock({ title, rows, emptyMessage }) {
   return (
     <div
-      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
-      className="rounded-xl p-5 flex-1 min-w-0"
+      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)' }}
+      className="themed-card rounded-xl p-5 flex-1 min-w-0"
     >
       <h3
         style={{ color: 'var(--color-text)' }}
@@ -60,8 +60,8 @@ function LoadingSkeleton() {
       </div>
       <div className="flex flex-col sm:flex-row gap-4">
         {[0, 1, 2].map(i => (
-          <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
-               className="rounded-xl p-5 flex-1 h-64 animate-pulse" />
+          <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)' }}
+               className="themed-card rounded-xl p-5 flex-1 h-64 animate-pulse" />
         ))}
       </div>
     </div>

@@ -7,10 +7,10 @@ function StatCard({ label, value, loading }) {
     <div
       style={{
         background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
+        border: '1px solid var(--color-card-border)',
         minHeight: '130px',
       }}
-      className="rounded-xl px-5 py-6 flex flex-col items-center justify-center gap-2 flex-1"
+      className="themed-card rounded-xl px-5 py-6 flex flex-col items-center justify-center gap-2 flex-1"
     >
       {loading ? (
         <div

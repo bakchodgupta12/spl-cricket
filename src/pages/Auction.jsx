@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import ThemeToggle from '../components/ThemeToggle'
 import { supabase } from '../lib/supabase'
 import { toPng } from 'html-to-image'
 import confetti from 'canvas-confetti'
@@ -611,7 +612,7 @@ function CategoryColumn({ category, players }) {
   const pal = CAT_PALETTE[category]
   const bid = COLUMN_BIDDING[category]
   return (
-    <div style={{
+    <div className="themed-card" style={{
       background: pal.bg,
       border: `1px solid ${pal.border}`,
       borderRadius: 10,
@@ -886,7 +887,7 @@ function LiveStatRow({ label, value }) {
 
 function LiveStatBlock({ title, rows, emptyMsg, icon }) {
   return (
-    <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
+    <div className="themed-card" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-card-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
       <p style={{ color: 'var(--color-text)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>
         {icon && <span style={{ marginRight: 4, fontSize: 11 }}>{icon}</span>}{title}
       </p>
@@ -900,7 +901,7 @@ function LiveStatBlock({ title, rows, emptyMsg, icon }) {
 
 function LiveStatBlockSkeleton({ rows }) {
   return (
-    <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
+    <div className="themed-card" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-card-border)', borderRadius: 8, padding: '10px 12px', flex: 1, minWidth: 0 }}>
       <div style={{ height: 9, width: 44, background: 'var(--color-border)', borderRadius: 3, marginBottom: 10 }} className="animate-pulse" />
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid var(--color-border)' }}>
@@ -962,7 +963,7 @@ function PlayerStatCard({ player, stats, statsLoading, tags }) {
   ]
 
   return (
-    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="themed-card" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Name + pills */}
       <div>
         <h2 style={{ color: 'var(--color-heading)', fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>{player.name}</h2>
@@ -1031,7 +1032,7 @@ function CategoryRosterPanel({ category, players, activeId, soldIds, salesMap, t
   const left = players.filter(p => !soldIds.has(p.id)).length
   const teamById = Object.fromEntries(teamInfo.map(t => [t.id, t]))
   return (
-    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' }}>
+    <div className="themed-card" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)', borderRadius: 12, overflow: 'hidden' }}>
       <div style={{ background: pal.bg, borderBottom: `1px solid ${pal.border}`, padding: '10px 14px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ color: pal.label, fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Category {category}
@@ -2206,15 +2207,18 @@ function useAuctionRealtimeData(channelName) {
 
 function TeamCard({ team, isPulsing }) {
   return (
-    <div style={{
-      background: 'var(--color-surface)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 12,
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      animation: isPulsing ? 'cardPulse 0.4s ease' : 'none',
-    }}>
+    <div
+      className="themed-card"
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-card-border)',
+        borderRadius: 12,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        animation: isPulsing ? 'cardPulse 0.4s ease' : 'none',
+      }}
+    >
       {/* Header strip */}
       <div style={{ background: team.color, minHeight: 60, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
         <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
@@ -2397,7 +2401,7 @@ export function FinalTeamListView() {
           {rosters.map(team => {
             const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
             return (
-              <div key={team.id} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div key={team.id} className="themed-card" style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
                 {/* Header */}
                 <div style={{ background: team.color, minHeight: 52, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px' }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', flexShrink: 0 }} />
@@ -2466,6 +2470,7 @@ export function AuctionTeamsPublic() {
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'soldPulse 2s ease-in-out infinite' }} />
           Live
         </span>
+        <div style={{ marginLeft: 'auto' }}><ThemeToggle /></div>
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 16px' }}>
@@ -2500,9 +2505,9 @@ function AuctionApp() {
     <div style={{ background: 'var(--color-bg)', minHeight: '100dvh' }}>
       <div
         style={{ background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}
-        className="px-4 sm:px-6 overflow-x-auto"
+        className="px-4 sm:px-6 flex items-center"
       >
-        <div className="flex gap-1 min-w-max">
+        <div className="flex gap-1 overflow-x-auto flex-1">
           {TABS.map(tab => {
             const active = tab === activeTab
             return (
@@ -2519,6 +2524,9 @@ function AuctionApp() {
               </button>
             )
           })}
+        </div>
+        <div className="pl-4 py-2 flex-shrink-0">
+          <ThemeToggle />
         </div>
       </div>
 
