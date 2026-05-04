@@ -2736,9 +2736,26 @@ function teamSlug(name) {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
+function fixturesForTeam(teamName) {
+  const letter = Object.entries(TEAM_LETTERS).find(([, name]) => name === teamName)?.[0]
+  if (!letter) return []
+  const all = [
+    ...GROUP_STAGE_8_OVER.map(m => ({ ...m, format: '8-over' })),
+    ...GROUP_STAGE_4_OVER.map(m => ({ ...m, format: '4-over' })),
+  ]
+  return all
+    .filter(m => m.teamA === letter || m.teamB === letter)
+    .map(m => {
+      const opponentLetter = m.teamA === letter ? m.teamB : m.teamA
+      return { time: m.start, opponent: TEAM_LETTERS[opponentLetter], format: m.format }
+    })
+    .sort((a, b) => a.time.localeCompare(b.time))
+}
+
 function TeamCardExportContent({ team }) {
   const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
   const fg = captainTextColor(team.color)
+  const fixtures = fixturesForTeam(team.name)
   return (
     <div style={{ width: 1080, background: BG, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Colour header strip */}
@@ -2780,6 +2797,41 @@ function TeamCardExportContent({ team }) {
           ))}
         </div>
       </div>
+
+      {/* Fixtures */}
+      {fixtures.length > 0 && (
+        <div style={{ padding: '0 60px 36px' }}>
+          <p style={{ color: MUTED, fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 18px', display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ color: ACCENT, fontSize: 11 }}>•</span> Fixtures
+          </p>
+          <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
+            {fixtures.map((f, i) => (
+              <div
+                key={`${f.time}-${f.opponent}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 18,
+                  padding: '18px 26px',
+                  borderBottom: i < fixtures.length - 1 ? `1px solid ${BORDER}` : 'none',
+                }}
+              >
+                <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontSize: 22, fontVariantNumeric: 'tabular-nums', minWidth: 92, flexShrink: 0 }}>
+                  {f.time}
+                </span>
+                <span style={{ color: MUTED, fontSize: 18, fontWeight: 400, flexShrink: 0 }}>vs</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
+                  <TeamLogoInline teamName={f.opponent} size={40} />
+                  <span style={{ color: HEADING, fontSize: 24, fontWeight: 700, letterSpacing: '0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {shortTeamName(f.opponent)}
+                  </span>
+                </span>
+                <span style={{ color: MUTED, fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>
+                  {f.format}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{ padding: '0 60px 40px', textAlign: 'center' }}>
