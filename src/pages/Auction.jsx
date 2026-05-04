@@ -913,8 +913,8 @@ const GROUP_STAGE_4_OVER = [
   { teamA: 'A', teamB: 'E', start: '13:30', end: '13:55' },
   { teamA: 'C', teamB: 'D', start: '14:00', end: '14:25' },
   { teamA: 'A', teamB: 'B', start: '14:30', end: '14:55' },
-  { teamA: 'B', teamB: 'C', start: '15:00', end: '15:25' },
-  { teamA: 'D', teamB: 'E', start: '15:30', end: '15:55' },
+  { teamA: 'D', teamB: 'E', start: '15:00', end: '15:25' },
+  { teamA: 'B', teamB: 'C', start: '15:30', end: '15:55' },
 ]
 const KNOCKOUTS = [
   { name: 'Qualifier 1',  start: '16:10', end: '17:10', format: '8-over', desc: 'Top 2 from group stage' },
