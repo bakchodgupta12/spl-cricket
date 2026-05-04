@@ -33,20 +33,30 @@ export default function SplS6() {
   return (
     <div style={{ background: BG, minHeight: '100dvh' }}>
       {/* Page header */}
-      <div style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}`, padding: '14px 24px' }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <img src="/spl-logo.svg" alt="SPL" style={{ height: 32, width: 'auto' }} />
-            <span style={{ color: HEADING, fontWeight: 700, fontSize: 15, letterSpacing: '0.01em' }}>
-              Superball Premier League — Season 6
+      <div
+        style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+        className="px-3 sm:px-6 py-3 sm:py-3.5"
+      >
+        <div className="max-w-[1280px] mx-auto flex items-center gap-3">
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', minWidth: 0 }}>
+            <img src="/spl-logo.svg" alt="SPL" className="h-7 sm:h-8 w-auto flex-shrink-0" />
+            <span
+              style={{ color: HEADING, letterSpacing: '0.01em' }}
+              className="font-bold text-[13px] sm:text-[15px] truncate"
+            >
+              <span className="hidden sm:inline">Superball Premier League — Season 6</span>
+              <span className="sm:hidden">SPL — Season 6</span>
             </span>
           </Link>
         </div>
       </div>
 
       {/* Tab strip */}
-      <div style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}`, padding: '0 24px' }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', display: 'flex', gap: 4, overflowX: 'auto' }}>
+      <div
+        style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+        className="px-2 sm:px-6"
+      >
+        <div className="max-w-[1280px] mx-auto flex gap-1 overflow-x-auto">
           {TABS.map(({ key, label }) => {
             const active = activeTab === key
             return (
@@ -58,14 +68,12 @@ export default function SplS6() {
                   color: active ? HEADING : MUTED,
                   border: 'none',
                   borderBottom: active ? `2px solid ${ACCENT}` : '2px solid transparent',
-                  padding: '12px 18px',
-                  fontSize: 13,
-                  fontWeight: 600,
                   letterSpacing: '0.02em',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   fontFamily: 'inherit',
                 }}
+                className="px-3 sm:px-[18px] py-3 sm:py-[12px] text-[13px] font-semibold min-h-[44px]"
               >
                 {label}
               </button>
@@ -75,7 +83,7 @@ export default function SplS6() {
       </div>
 
       {/* Tab content */}
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 16px' }}>
+      <div className="max-w-[1280px] mx-auto px-3 sm:px-4 py-5 sm:py-8">
         {activeTab === 'teams'    && <FinalTeamListView />}
         {activeTab === 'schedule' && <ScheduleTab />}
         {activeTab === 'rules'    && <RulesTab />}
@@ -156,9 +164,10 @@ function Collapsible({ title, defaultOpen = false, forceOpen = false, children }
         onClick={() => setOpen(o => !o)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-          background: 'transparent', border: 'none', padding: '14px 18px',
+          background: 'transparent', border: 'none',
           cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
         }}
+        className="px-3.5 sm:px-[18px] py-3.5 min-h-[48px]"
       >
         <span style={{ color: GOLD, fontSize: 12, minWidth: 14 }}>
           {visible ? '▾' : '▸'}
@@ -176,10 +185,10 @@ function Collapsible({ title, defaultOpen = false, forceOpen = false, children }
         transition: 'grid-template-rows 0.25s ease',
       }}>
         <div style={{ overflow: 'hidden' }}>
-          <div style={{
-            padding: '4px 22px 22px',
-            borderTop: visible ? `1px solid ${BORDER}` : 'none',
-          }}>
+          <div
+            style={{ borderTop: visible ? `1px solid ${BORDER}` : 'none' }}
+            className="px-4 sm:px-[22px] pt-1 pb-5 sm:pb-[22px]"
+          >
             {children}
           </div>
         </div>
@@ -313,18 +322,22 @@ function RulesTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div ref={captureRef} style={{
-        background: BG, borderRadius: 12, border: `1px solid ${BORDER}`,
-        padding: 28, display: 'flex', flexDirection: 'column', gap: 18,
-      }}>
+      <div
+        ref={captureRef}
+        style={{
+          background: BG, borderRadius: 12, border: `1px solid ${BORDER}`,
+          display: 'flex', flexDirection: 'column', gap: 18,
+        }}
+        className="p-4 sm:p-7"
+      >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <img src="/spl-logo.svg" alt="SPL" style={{ height: 64, width: 'auto', flexShrink: 0 }} />
-          <div>
-            <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
+        <div className="flex items-center gap-3 sm:gap-5">
+          <img src="/spl-logo.svg" alt="SPL" className="h-12 sm:h-16 w-auto flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 style={{ color: HEADING, lineHeight: 1.2, margin: 0 }} className="text-[16px] sm:text-[20px] font-bold">
               Superball Premier League — Season 6 Rulebook
             </h1>
-            <p style={{ color: MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+            <p style={{ color: MUTED, marginTop: 6, marginBottom: 0 }} className="text-[12px] sm:text-[13px]">
               Auction & match rules
             </p>
           </div>
@@ -349,18 +362,19 @@ function RulesTab() {
         </Collapsible>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <div className="flex justify-center">
         <button
           onClick={handleExportPdf}
           disabled={exporting}
           style={{
             background: exporting ? SURFACE : ACCENT,
             color: '#fff', border: 'none', borderRadius: 8,
-            padding: '10px 24px', fontSize: 13, fontWeight: 600,
+            fontSize: 13, fontWeight: 600,
             cursor: exporting ? 'default' : 'pointer',
             opacity: exporting ? 0.6 : 1,
             fontFamily: 'inherit',
           }}
+          className="px-6 py-3 min-h-[44px] w-full sm:w-auto"
         >
           {exporting ? 'Exporting…' : '↓ Export as PDF'}
         </button>

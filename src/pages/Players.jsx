@@ -187,9 +187,9 @@ export default function Players() {
       {/* Page header */}
       <div
         style={{ borderBottom: '1px solid var(--color-border)' }}
-        className="px-4 sm:px-6 py-4 flex items-center justify-between gap-4"
+        className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4"
       >
-        <h1 style={{ color: 'var(--color-heading)' }} className="text-2xl font-bold tracking-tight">
+        <h1 style={{ color: 'var(--color-heading)' }} className="text-xl sm:text-2xl font-bold tracking-tight">
           Players
         </h1>
         <input
@@ -202,7 +202,7 @@ export default function Players() {
             border: '1px solid var(--color-border)',
             color: 'var(--color-heading)',
           }}
-          className="w-44 sm:w-60 px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full sm:w-60 px-3 py-2 sm:py-1.5 min-h-[40px] sm:min-h-0 rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
@@ -234,7 +234,7 @@ export default function Players() {
             color: activeFilterCount > 0 ? 'var(--color-accent)' : 'var(--color-text)',
             border: `1px solid ${activeFilterCount > 0 ? 'var(--color-accent)' : 'var(--color-border)'}`,
           }}
-          className="px-4 py-1 rounded-full text-xs font-semibold transition-colors hover:opacity-80 ml-auto flex items-center gap-1.5"
+          className="px-4 py-1.5 sm:py-1 min-h-[36px] sm:min-h-0 rounded-full text-xs font-semibold transition-colors hover:opacity-80 sm:ml-auto flex items-center gap-1.5"
         >
           Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} {filtersOpen ? '▲' : '▼'}
         </button>

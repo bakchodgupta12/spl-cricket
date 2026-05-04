@@ -8,26 +8,25 @@ function StatCard({ label, value, loading }) {
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-card-border)',
-        minHeight: '130px',
       }}
-      className="themed-card rounded-xl px-5 py-6 flex flex-col items-center justify-center gap-2 flex-1"
+      className="themed-card rounded-xl px-3 py-4 sm:px-5 sm:py-6 flex flex-col items-center justify-center gap-1 sm:gap-2 flex-1 min-w-0 min-h-[88px] sm:min-h-[130px]"
     >
       {loading ? (
         <div
           style={{ background: 'var(--color-border)' }}
-          className="h-10 w-20 rounded animate-pulse"
+          className="h-6 sm:h-10 w-12 sm:w-20 rounded animate-pulse"
         />
       ) : (
         <span
           style={{ color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums' }}
-          className="text-4xl sm:text-5xl font-bold tracking-tight leading-none"
+          className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-none"
         >
           {value}
         </span>
       )}
       <span
         style={{ color: 'var(--color-text)' }}
-        className="text-xs font-semibold uppercase tracking-widest whitespace-nowrap"
+        className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest whitespace-nowrap"
       >
         {label}
       </span>
@@ -91,45 +90,40 @@ export default function Landing() {
   return (
     <div
       style={{ background: 'var(--color-bg)', minHeight: '100dvh', position: 'relative' }}
-      className="flex flex-col items-center justify-center px-4 py-16"
+      className="flex flex-col items-center justify-center px-4 py-12 sm:py-16"
     >
       {/* Auction Mode — small ghost button, admin-style placement */}
       <Link
         to="/auction"
         style={{
-          position: 'absolute',
-          top: 12,
-          right: 12,
           color: 'var(--color-text)',
           border: '1px solid var(--color-border)',
           background: 'transparent',
-          fontSize: 11,
           letterSpacing: '0.06em',
-          textTransform: 'uppercase',
         }}
-        className="px-3 py-1.5 rounded-md font-medium hover:opacity-80 transition-opacity"
+        className="absolute top-2 right-2 sm:top-3 sm:right-3 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md font-medium uppercase text-[10px] sm:text-[11px] hover:opacity-80 transition-opacity"
       >
         Auction Mode
       </Link>
 
-      <div className="w-full max-w-3xl flex flex-col items-center gap-10 text-center">
+      <div className="w-full max-w-3xl flex flex-col items-center gap-7 sm:gap-10 text-center">
 
         {/* Branding — logo above wordmark */}
         <div className="flex flex-col items-center gap-3">
           <img
             src="/spl-logo.svg"
             alt="Superball Premier League"
-            style={{ height: '180px', width: 'auto' }}
+            className="h-28 sm:h-40 md:h-44 w-auto"
           />
           <h1
             style={{ color: 'var(--color-heading)' }}
-            className="text-5xl sm:text-6xl font-bold tracking-tight leading-none"
+            className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-none"
           >
             🏏 SPL Hub
           </h1>
           <p
             style={{ color: 'var(--color-text)' }}
-            className="text-lg sm:text-xl max-w-md"
+            className="text-sm sm:text-lg md:text-xl max-w-md px-2"
           >
             Five seasons of Superball Premier League cricket — every run, wicket,
             and catch, in one place.
@@ -142,7 +136,7 @@ export default function Landing() {
             Could not load stats: {error}
           </p>
         ) : (
-          <div className="w-full flex gap-3">
+          <div className="w-full flex gap-2 sm:gap-3">
             {statCards.map(({ label, value }) => (
               <StatCard key={label} label={label} value={value} loading={loading} />
             ))}
@@ -150,18 +144,18 @@ export default function Landing() {
         )}
 
         {/* CTA */}
-        <div className="flex justify-center gap-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row justify-center gap-3 w-full sm:w-auto">
           <Link
             to="/spl-s6"
             style={{ background: 'var(--color-accent)', color: '#fff' }}
-            className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-90 transition-opacity"
+            className="w-full sm:w-auto px-8 py-3 min-h-[48px] rounded-lg font-semibold text-base hover:opacity-90 transition-opacity flex items-center justify-center"
           >
             SPL Season 6
           </Link>
           <Link
             to="/players"
             style={{ background: 'transparent', color: 'var(--color-heading)', border: '1px solid var(--color-border)' }}
-            className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-80 transition-opacity"
+            className="w-full sm:w-auto px-8 py-3 min-h-[48px] rounded-lg font-semibold text-base hover:opacity-80 transition-opacity flex items-center justify-center"
           >
             Browse Players
           </Link>

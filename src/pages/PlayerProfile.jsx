@@ -52,10 +52,10 @@ function LoadingSkeleton() {
           <div style={{ background: 'var(--color-border)' }} className="h-4 w-32 rounded animate-pulse" />
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {[0, 1, 2].map(i => (
           <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-card-border)' }}
-               className="themed-card rounded-xl p-4 flex-1 h-64 animate-pulse" />
+               className="themed-card rounded-xl p-4 h-48 sm:h-64 animate-pulse" />
         ))}
       </div>
     </div>
@@ -333,8 +333,8 @@ export default function PlayerProfile() {
           )}
         </div>
 
-        {/* Stat blocks */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        {/* Stat blocks — stack on mobile, 3 columns on tablet+ */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <StatBlock
             title="Batting"
             rows={battingRows}

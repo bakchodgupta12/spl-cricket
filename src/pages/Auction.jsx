@@ -942,7 +942,7 @@ function TeamCell({ letter }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
       <TeamLogoInline teamName={fullName} size={22} />
-      <span style={{ color: HEADING, fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <span style={{ color: HEADING, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="text-[13px] sm:text-[14px]">
         {short}
       </span>
     </span>
@@ -951,16 +951,17 @@ function TeamCell({ letter }) {
 
 function MatchRow({ match, format }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: `1px solid ${BORDER}` }}>
-      <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontSize: 13, fontVariantNumeric: 'tabular-nums', minWidth: 110, flexShrink: 0 }}>
+    <div className="flex items-center gap-3 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
+      <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }} className="text-[12px] sm:text-[13px] min-w-[88px] sm:min-w-[110px]">
         {match.start} – {match.end}
       </span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+      {/* Matchup: row on sm+, column on mobile */}
+      <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-0">
         <TeamCell letter={match.teamA} />
-        <span style={{ color: MUTED, fontSize: 12, fontWeight: 400, flexShrink: 0 }}>vs</span>
+        <span style={{ color: MUTED, fontWeight: 400, flexShrink: 0 }} className="text-[11px] sm:text-[12px] sm:inline">vs</span>
         <TeamCell letter={match.teamB} />
       </span>
-      <span style={{ color: MUTED, fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', flexShrink: 0 }}>
+      <span style={{ color: MUTED, letterSpacing: '0.07em', textTransform: 'uppercase', flexShrink: 0 }} className="text-[9.5px] sm:text-[10px]">
         {format}
       </span>
     </div>
@@ -1006,16 +1007,20 @@ export function ScheduleTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Capture area */}
-      <div ref={captureRef} style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div
+        ref={captureRef}
+        style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 24 }}
+        className="p-4 sm:p-7"
+      >
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <img src="/spl-logo.svg" alt="SPL" style={{ height: 64, width: 'auto', flexShrink: 0 }} />
-          <div>
-            <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
+        <div className="flex items-center gap-3 sm:gap-5">
+          <img src="/spl-logo.svg" alt="SPL" className="h-12 sm:h-16 w-auto flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 style={{ color: HEADING, lineHeight: 1.2, margin: 0 }} className="text-[16px] sm:text-[20px] font-bold">
               Superball Premier League — Season 6 Schedule
             </h1>
-            <p style={{ color: MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+            <p style={{ color: MUTED, marginTop: 6, marginBottom: 0 }} className="text-[12px] sm:text-[13px]">
               Tournament Date: June 13th, 2026
             </p>
           </div>
@@ -1053,25 +1058,28 @@ export function ScheduleTab() {
           <p style={{ color: GOLD, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ color: GOLD, fontSize: 9 }}>•</span> Knockouts
           </p>
-          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+          <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-5">
             {/* Match list */}
-            <div style={{ flex: '0 0 55%', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', background: SURFACE }}>
+            <div
+              style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', background: SURFACE }}
+              className="w-full md:basis-[55%] md:flex-shrink-0"
+            >
               {KNOCKOUTS.map((k, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: i < KNOCKOUTS.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
-                  <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontSize: 13, fontVariantNumeric: 'tabular-nums', minWidth: 110, flexShrink: 0 }}>
+                <div key={i} className="flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3" style={{ borderBottom: i < KNOCKOUTS.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+                  <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }} className="text-[12px] sm:text-[13px] min-w-[88px] sm:min-w-[110px]">
                     {k.start} – {k.end}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: HEADING, fontSize: 14, fontWeight: 700 }}>{k.name}</div>
-                    <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>{k.desc}</div>
+                    <div style={{ color: HEADING, fontWeight: 700 }} className="text-[13px] sm:text-[14px]">{k.name}</div>
+                    <div style={{ color: MUTED, marginTop: 2 }} className="text-[10.5px] sm:text-[11px]">{k.desc}</div>
                   </div>
-                  <span style={{ color: MUTED, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>{k.format}</span>
+                  <span style={{ color: MUTED, textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }} className="text-[9.5px] sm:text-[10px]">{k.format}</span>
                 </div>
               ))}
             </div>
 
-            {/* Qualification rules */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Qualification rules — beside on md+, below on mobile */}
+            <div className="flex-1 flex flex-col gap-2.5 min-w-0">
               <p style={{ color: MUTED, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ color: ACCENT, fontSize: 9 }}>•</span> Qualification rules
               </p>
@@ -1093,11 +1101,12 @@ export function ScheduleTab() {
       </div>
 
       {/* Export button */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <div className="flex justify-center">
         <button
           onClick={handleExport}
           disabled={exporting}
-          style={{ background: exporting ? SURFACE : '#4d8eff', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+          style={{ background: exporting ? SURFACE : '#4d8eff', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+          className="px-6 py-3 min-h-[44px] w-full sm:w-auto"
         >
           {exporting ? 'Exporting…' : '↓ Export PNG'}
         </button>
@@ -3000,23 +3009,27 @@ export function FinalTeamListView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Capture area — per-team download buttons have data-export-exclude so they're stripped from PNG */}
-      <div ref={captureRef} style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div
+        ref={captureRef}
+        style={{ background: BG, borderRadius: 12, border: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 20 }}
+        className="p-4 sm:p-7"
+      >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <img src="/spl-logo.svg" alt="SPL" style={{ height: 64, width: 'auto', flexShrink: 0 }} />
-          <div>
-            <h1 style={{ color: HEADING, fontSize: 20, fontWeight: 700, lineHeight: 1.2, margin: 0 }}>
+        <div className="flex items-center gap-3 sm:gap-5">
+          <img src="/spl-logo.svg" alt="SPL" className="h-12 sm:h-16 w-auto flex-shrink-0" />
+          <div className="min-w-0">
+            <h1 style={{ color: HEADING, lineHeight: 1.2, margin: 0 }} className="text-[16px] sm:text-[20px] font-bold">
               Superball Premier League — Season 6 Team List
             </h1>
-            <p style={{ color: MUTED, fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+            <p style={{ color: MUTED, marginTop: 6, marginBottom: 0 }} className="text-[12px] sm:text-[13px]">
               Tournament Date: June 13th, 2026
             </p>
           </div>
         </div>
         <div style={{ height: 1, background: BORDER }} />
 
-        {/* Team grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+        {/* Team grid — auto-stacks at narrow widths via auto-fill */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 270px), 1fr))', gap: 14 }}>
           {rosters.map(team => {
             const emptySlots = Math.max(0, MAX_PURCHASES - team.players.length)
             const isExportingThis = exportingTeamId === team.id
@@ -3068,18 +3081,20 @@ export function FinalTeamListView() {
       </div>
 
       {/* Export buttons */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
+      <div className="flex flex-col sm:flex-row justify-center gap-2.5">
         <button
           onClick={handleExport}
           disabled={exporting}
-          style={{ background: exporting ? 'var(--color-surface)' : 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+          style={{ background: exporting ? 'var(--color-surface)' : 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+          className="px-6 sm:px-6 py-3 min-h-[44px] w-full sm:w-auto"
         >
           {exporting ? 'Exporting…' : '↓ Export PNG'}
         </button>
         <button
           onClick={handleMobileExport}
           disabled={exportingMobile}
-          style={{ background: exportingMobile ? 'var(--color-surface)' : 'var(--color-surface)', color: exportingMobile ? 'var(--color-text)' : 'var(--color-heading)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: exportingMobile ? 'default' : 'pointer', opacity: exportingMobile ? 0.6 : 1 }}
+          style={{ background: exportingMobile ? 'var(--color-surface)' : 'var(--color-surface)', color: exportingMobile ? 'var(--color-text)' : 'var(--color-heading)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: exportingMobile ? 'default' : 'pointer', opacity: exportingMobile ? 0.6 : 1 }}
+          className="px-6 sm:px-6 py-3 min-h-[44px] w-full sm:w-auto"
         >
           {exportingMobile ? 'Exporting…' : '↓ Export for Mobile'}
         </button>
