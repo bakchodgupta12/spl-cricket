@@ -904,10 +904,10 @@ function CategoriesTab() {
 
 const GROUP_STAGE_8_OVER = [
   { teamA: 'D', teamB: 'A', start: '08:30', end: '09:20' },
-  { teamA: 'C', teamB: 'E', start: '09:25', end: '10:15' },
-  { teamA: 'B', teamB: 'D', start: '10:20', end: '11:10' },
-  { teamA: 'C', teamB: 'A', start: '11:15', end: '12:05' },
-  { teamA: 'E', teamB: 'B', start: '12:10', end: '13:00' },
+  { teamA: 'E', teamB: 'B', start: '09:25', end: '10:15' },
+  { teamA: 'C', teamB: 'A', start: '10:20', end: '11:10' },
+  { teamA: 'B', teamB: 'D', start: '11:15', end: '12:05' },
+  { teamA: 'C', teamB: 'E', start: '12:10', end: '13:00' },
 ]
 const GROUP_STAGE_4_OVER = [
   { teamA: 'A', teamB: 'E', start: '13:30', end: '13:55' },
