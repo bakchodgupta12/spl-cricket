@@ -923,14 +923,42 @@ const KNOCKOUTS = [
   { name: 'Final',        start: '19:25', end: '20:25', format: '8-over', desc: 'Winner Q1 vs Winner Q2' },
 ]
 
+const TEAM_LETTERS = {
+  A: 'Bangkok Titans',
+  B: 'Bangkok Super Kings',
+  C: 'Bangkok Indians',
+  D: 'Bangkok Royals',
+  E: 'Royal Challengers Bangkok',
+}
+
+// Drop "Bangkok" (prefix or suffix) so names fit in match rows.
+function shortTeamName(fullName) {
+  return fullName.replace(/^Bangkok\s+/, '').replace(/\s+Bangkok$/, '').trim()
+}
+
+function TeamCell({ letter }) {
+  const fullName = TEAM_LETTERS[letter] ?? letter
+  const short = shortTeamName(fullName)
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+      <TeamLogoInline teamName={fullName} size={22} />
+      <span style={{ color: HEADING, fontSize: 14, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {short}
+      </span>
+    </span>
+  )
+}
+
 function MatchRow({ match, format }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: `1px solid ${BORDER}` }}>
       <span style={{ color: MUTED, fontFamily: 'ui-monospace, Cascadia Code, Consolas, monospace', fontSize: 13, fontVariantNumeric: 'tabular-nums', minWidth: 110, flexShrink: 0 }}>
         {match.start} – {match.end}
       </span>
-      <span style={{ color: HEADING, fontSize: 15, fontWeight: 700, letterSpacing: '0.04em', flex: 1 }}>
-        {match.teamA} <span style={{ color: MUTED, fontWeight: 400 }}>vs</span> {match.teamB}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+        <TeamCell letter={match.teamA} />
+        <span style={{ color: MUTED, fontSize: 12, fontWeight: 400, flexShrink: 0 }}>vs</span>
+        <TeamCell letter={match.teamB} />
       </span>
       <span style={{ color: MUTED, fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', flexShrink: 0 }}>
         {format}
