@@ -90,9 +90,28 @@ export default function Landing() {
 
   return (
     <div
-      style={{ background: 'var(--color-bg)', minHeight: '100dvh' }}
+      style={{ background: 'var(--color-bg)', minHeight: '100dvh', position: 'relative' }}
       className="flex flex-col items-center justify-center px-4 py-16"
     >
+      {/* Auction Mode — small ghost button, admin-style placement */}
+      <Link
+        to="/auction"
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          color: 'var(--color-text)',
+          border: '1px solid var(--color-border)',
+          background: 'transparent',
+          fontSize: 11,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+        className="px-3 py-1.5 rounded-md font-medium hover:opacity-80 transition-opacity"
+      >
+        Auction Mode
+      </Link>
+
       <div className="w-full max-w-3xl flex flex-col items-center gap-10 text-center">
 
         {/* Branding — logo above wordmark */}
@@ -131,20 +150,20 @@ export default function Landing() {
         )}
 
         {/* CTA */}
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center gap-3 flex-wrap">
           <Link
-            to="/players"
+            to="/spl-s6"
             style={{ background: 'var(--color-accent)', color: '#fff' }}
             className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-90 transition-opacity"
           >
-            Browse Players
+            SPL Season 6
           </Link>
           <Link
-            to="/auction"
-            style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+            to="/players"
+            style={{ background: 'transparent', color: 'var(--color-heading)', border: '1px solid var(--color-border)' }}
             className="px-8 py-3 rounded-lg font-semibold text-base hover:opacity-80 transition-opacity"
           >
-            Auction Mode
+            Browse Players
           </Link>
         </div>
 

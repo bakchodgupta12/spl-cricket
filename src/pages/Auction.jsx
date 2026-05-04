@@ -955,7 +955,7 @@ function Divider({ label }) {
   )
 }
 
-function ScheduleTab() {
+export function ScheduleTab() {
   const captureRef = useRef(null)
   const [exporting, setExporting] = useState(false)
 
